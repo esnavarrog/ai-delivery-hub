@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.DS_Store
+# Bare mirrors and detached read-only checkouts used by planning runs (WORKTREES_DIR).
+.worktrees/
+.gstack/

@@ -1,0 +1,124 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderPlanMarkdown > matches the snapshot for the fixture plan 1`] = `
+"# Plan
+
+## Goal
+
+Fix login when session cookie is missing
+
+## Scope In
+
+- auth middleware
+
+## Scope Out
+
+- password reset
+
+## Files Touched
+
+- \`src/auth/middleware.ts\` (modify): handle missing cookie
+- \`test/auth/middleware.test.ts\` (create): regression test
+
+## Steps
+
+### 1. Write failing test
+
+Cover the missing-cookie path
+
+Tests: middleware.test.ts
+
+### 2. Fix middleware
+
+Return 401 instead of throwing
+
+## Tests
+
+- pnpm test
+
+## Risks
+
+- [medium] Session regressions — Mitigation: Run auth suite
+
+## Rollback
+
+Revert the commit
+
+## Acceptance Criteria
+
+- **AC-1** — Given no cookie, when GET /me, then 401 returned
+- **AC-2** — Given valid cookie, when GET /me, then 200 returned
+
+## Base Commit
+
+\`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\`
+
+## Open Questions
+
+_None_
+"
+`;
+
+exports[`renderPlanMarkdown design drafts > renders every draft with id, title, purpose and artifact ref when present 1`] = `
+"# Plan
+
+## Goal
+
+Fix login when session cookie is missing
+
+## Scope In
+
+- auth middleware
+
+## Scope Out
+
+- password reset
+
+## Design Drafts
+
+- **dd-1** — Login error state: Show the 401 message (\`drafts/login-v1.html\`)
+- **dd-2** — Retry banner: Offer a retry (\`drafts/retry.html\`)
+
+## Files Touched
+
+- \`src/auth/middleware.ts\` (modify): handle missing cookie
+- \`test/auth/middleware.test.ts\` (create): regression test
+
+## Steps
+
+### 1. Write failing test
+
+Cover the missing-cookie path
+
+Tests: middleware.test.ts
+
+### 2. Fix middleware
+
+Return 401 instead of throwing
+
+## Tests
+
+- pnpm test
+
+## Risks
+
+- [medium] Session regressions — Mitigation: Run auth suite
+
+## Rollback
+
+Revert the commit
+
+## Acceptance Criteria
+
+- **AC-1** — Given no cookie, when GET /me, then 401 returned
+- **AC-2** — Given valid cookie, when GET /me, then 200 returned
+
+## Base Commit
+
+\`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\`
+
+## Open Questions
+
+_None_
+"
+`;

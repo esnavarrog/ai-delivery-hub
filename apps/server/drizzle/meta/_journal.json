@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789417322990,
+      "tag": "0000_nifty_viper",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789420288069,
+      "tag": "0001_runs_failure_columns",
+      "breakpoints": true
+    }
+  ]
+}

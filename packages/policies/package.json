@@ -1,0 +1,32 @@
+{
+  "name": "@ai-delivery-hub/policies",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Policy definitions for AI Delivery Hub: repos, models, budgets, OpenProject trigger, risk paths and prompt seeds.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "*.yaml",
+    "*.md"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-delivery-hub/domain": "workspace:*",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.4",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  },
+  "author": "Esteban Navarro <esteban.navarro@redcomercio.cl> (https://github.com/Macstban)",
+  "license": "SEE LICENSE IN LICENSE"
+}

@@ -1,0 +1,53 @@
+# Repositories the hub may plan against. Keys are the names triage must pick from.
+repos:
+  backend-parkingapp:
+    remote: git@github.com-redcomercio:Redcomercio/backend-parkingapp.git
+    defaultBranch: develop
+    testCommand: bundle exec rspec
+    stack: rails
+    branchPattern: "{wpId}-{slug}"
+  libredte-api:
+    remote: https://github.com/Redcomercio/libredte-api.git
+    defaultBranch: main
+    testCommand: pytest
+    stack: fastapi
+    branchPattern: "feat/{slug}"
+
+# Exact Claude model ids (no date suffix). Planning picks the model by triage risk tier.
+models:
+  triage: claude-opus-5
+  planning:
+    low: claude-sonnet-5
+    medium: claude-opus-5
+    high: claude-opus-5
+  # output_config.effort per run kind: low | medium | high | xhigh | max
+  effort:
+    triage: low
+    planning: high
+
+# Per-run ceilings; exceeding either one raises `budget_exhausted`.
+budgets:
+  triage:
+    maxTokens: 40000
+    maxDurationMs: 180000
+  planning:
+    maxTokens: 150000
+    maxDurationMs: 600000
+    maxTurns: 40
+
+openproject:
+  projectIds: [15, 6]
+  trigger:
+    kind: status_or_prefix
+    statusName: Ready for AI
+    subjectPrefix: "[AI]"
+  # Ticket state -> OpenProject status name pushed through the sync outbox.
+  statusSync:
+    planning: In specification
+    plan_review: Specified
+    plan_approved: Confirmed
+    rejected: Rejected
+
+# GitHub login -> hub role. Anyone not listed is a `requester`.
+roles:
+  Macstban: admin

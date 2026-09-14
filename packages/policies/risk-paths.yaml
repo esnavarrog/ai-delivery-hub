@@ -1,0 +1,24 @@
+# Path globs -> risk tier. The highest tier among the matched paths wins; unmatched paths are `low`.
+rules:
+  - glob: "**/payments/**"
+    tier: high
+  - glob: "**/payment*"
+    tier: high
+  - glob: "**/webpay/**"
+    tier: high
+  - glob: "**/transbank/**"
+    tier: high
+  - glob: "**/mercado_pago/**"
+    tier: high
+  - glob: "**/mercadopago/**"
+    tier: high
+  - glob: "**/auth/**"
+    tier: high
+  - glob: "**/models/client*"
+    tier: high
+  - glob: "config/credentials*"
+    tier: high
+  - glob: "db/migrate/**"
+    tier: medium
+  - glob: "**/api/**"
+    tier: medium

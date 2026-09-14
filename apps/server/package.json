@@ -1,0 +1,41 @@
+{
+  "name": "@ai-delivery-hub/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Orchestration service for AI Delivery Hub: OpenProject ingest, event store, jobs and HTTP/SSE API.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/adapters/db/migrate.ts"
+  },
+  "dependencies": {
+    "@ai-delivery-hub/contracts": "workspace:*",
+    "@ai-delivery-hub/domain": "workspace:*",
+    "@ai-delivery-hub/policies": "workspace:*",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.270",
+    "@anthropic-ai/sdk": "^0.125.0",
+    "@hono/node-server": "2.1.1",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.13.7",
+    "pg": "8.23.0",
+    "pg-boss": "12.32.0",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.4",
+    "@types/pg": "8.23.1",
+    "dotenv": "17.4.2",
+    "drizzle-kit": "0.31.10",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  },
+  "author": "Esteban Navarro <esteban.navarro@redcomercio.cl> (https://github.com/Macstban)",
+  "license": "SEE LICENSE IN LICENSE"
+}

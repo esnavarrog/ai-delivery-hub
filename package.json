@@ -1,0 +1,24 @@
+{
+  "name": "ai-delivery-hub",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.22.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev:server": "pnpm --filter @ai-delivery-hub/server dev",
+    "dev:web": "pnpm --filter @ai-delivery-hub/web dev",
+    "build:web": "pnpm --filter @ai-delivery-hub/web build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "echo \"lint: not configured yet\""
+  },
+  "author": {
+    "name": "Esteban Navarro",
+    "email": "esteban.navarro@redcomercio.cl",
+    "url": "https://github.com/Macstban"
+  },
+  "license": "SEE LICENSE IN LICENSE",
+  "description": "Central hub where OpenProject tickets are triaged and planned by AI and approved by humans. Concept and architecture by Esteban Navarro (Macstban)."
+}

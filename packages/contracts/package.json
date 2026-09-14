@@ -1,0 +1,28 @@
+{
+  "name": "@ai-delivery-hub/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HTTP API contracts shared by the server and the web app: zod request/response schemas and inferred types.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-delivery-hub/domain": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vitest": "5.0.0"
+  },
+  "author": "Esteban Navarro <esteban.navarro@redcomercio.cl> (https://github.com/Macstban)",
+  "license": "SEE LICENSE IN LICENSE"
+}

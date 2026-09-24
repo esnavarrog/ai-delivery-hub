@@ -36,6 +36,8 @@ export interface AgentSdkPlanningRunnerOptions {
   policies: PlanningPolicies;
   /** Environment for the Claude Code subprocess; filtered through `agentSubprocessEnv`. Defaults to `process.env`. */
   env?: NodeJS.ProcessEnv;
+  /** Subscription mode: drop `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` so the Claude Code CLI login is used. */
+  stripApiKeyEnv?: boolean;
   pathToClaudeCodeExecutable?: string;
   /** Used when the budget carries no `maxTurns`. */
   defaultMaxTurns?: number;
@@ -130,7 +132,7 @@ export class AgentSdkPlanningRunner implements Pick<AgentRunnerPort, 'runPlannin
 
   constructor(private readonly options: AgentSdkPlanningRunnerOptions) {
     this.query = options.query ?? (sdkQuery as AgentQuery);
-    this.env = agentSubprocessEnv(options.env ?? process.env);
+    this.env = agentSubprocessEnv(options.env ?? process.env, { stripApiKeyEnv: options.stripApiKeyEnv });
   }
 
   async runPlanning(input: PlanningRunnerInput): Promise<RunResult<Plan>> {

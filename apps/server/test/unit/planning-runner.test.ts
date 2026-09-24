@@ -161,6 +161,11 @@ describe('agentSubprocessEnv', () => {
     const env = agentSubprocessEnv({ PATH: '/bin', HOME: '/h', ANTHROPIC_API_KEY: 'k', CLAUDE_CONFIG_DIR: '/c', OP_API_KEY: 'nope', DATABASE_URL: 'nope', LANG: 'en' });
     expect(env).toEqual({ PATH: '/bin', HOME: '/h', ANTHROPIC_API_KEY: 'k', CLAUDE_CONFIG_DIR: '/c', LANG: 'en', CLAUDE_AGENT_SDK_CLIENT_APP: expect.stringMatching(/ai-delivery-hub/) });
   });
+
+  it('drops ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN when stripApiKeyEnv is set (subscription mode)', () => {
+    const env = agentSubprocessEnv({ PATH: '/bin', ANTHROPIC_API_KEY: 'k', ANTHROPIC_AUTH_TOKEN: 't', CLAUDE_CONFIG_DIR: '/c' }, { stripApiKeyEnv: true });
+    expect(env).toEqual({ PATH: '/bin', CLAUDE_CONFIG_DIR: '/c', CLAUDE_AGENT_SDK_CLIENT_APP: expect.stringMatching(/ai-delivery-hub/) });
+  });
 });
 
 describe('AgentSdkPlanningRunner', () => {
@@ -209,6 +214,15 @@ describe('AgentSdkPlanningRunner', () => {
     expect(prompt).toContain('Old goal');
     expect(prompt).toContain('Please add a spec');
     expect(prompt).toContain('riskTier: high');
+  });
+
+  it('strips ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN from the child env when stripApiKeyEnv is set', async () => {
+    const { query, calls } = fakeQuery([[success(JSON.stringify(plan()))]]);
+    await runner(query, {
+      stripApiKeyEnv: true,
+      env: { PATH: '/usr/bin', ANTHROPIC_API_KEY: 'sk-test', ANTHROPIC_AUTH_TOKEN: 'tok', CLAUDE_CONFIG_DIR: '/c' },
+    }).runPlanning(input());
+    expect(calls[0]!.options!.env).toEqual({ PATH: '/usr/bin', CLAUDE_CONFIG_DIR: '/c', CLAUDE_AGENT_SDK_CLIENT_APP: expect.any(String) });
   });
 
   it('picks the model by risk tier', async () => {

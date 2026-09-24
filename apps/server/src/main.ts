@@ -3,6 +3,7 @@ import { serve } from '@hono/node-server';
 import Anthropic from '@anthropic-ai/sdk';
 import type { Clock, IdGenerator } from '@ai-delivery-hub/domain';
 import { loadPolicies } from '@ai-delivery-hub/policies';
+import { ClaudeCodeTriageRunner } from './adapters/agent/claude-code-triage-runner.js';
 import { AgentSdkPlanningRunner } from './adapters/agent/planning-runner.js';
 import { AnthropicTriageRunner } from './adapters/agent/triage-runner.js';
 import { createDb } from './adapters/db/client.js';
@@ -37,6 +38,7 @@ const ids: IdGenerator = { uuid: () => randomUUID() };
 async function main(): Promise<void> {
   loadLocalEnv();
   const config = loadConfig();
+  log.info('ai credentials mode resolved', { mode: config.aiCredentialsMode });
   const policies = await loadPolicies(config.POLICIES_DIR);
 
   const dbHandle = createDb(config.DATABASE_URL);
@@ -59,14 +61,26 @@ async function main(): Promise<void> {
   const watermarks = new PgWatermarkStore(dbHandle.db);
   const outboxWorker = new OutboxWorker({ repo: outboxRepo, op, eventStore, ids, clock });
 
-  // Credentials are resolved by the SDKs (ANTHROPIC_API_KEY or a logged-in profile); nothing is read here.
-  const anthropic = new Anthropic();
-  const triageRunner = new AnthropicTriageRunner({ client: anthropic, model: policies.models.triage, effort: policies.models.effort.triage, policies });
+  // `api-key` mode: credentials are resolved by the SDKs from ANTHROPIC_API_KEY; nothing is read here.
+  // `subscription` mode: the Agent SDK spawns the Claude Code CLI, which resolves the logged-in profile
+  // once ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN are stripped from its env (see agentSubprocessEnv).
+  const stripApiKeyEnv = config.aiCredentialsMode === 'subscription';
+  const triageRunner =
+    config.aiCredentialsMode === 'api-key'
+      ? new AnthropicTriageRunner({ client: new Anthropic(), model: policies.models.triage, effort: policies.models.effort.triage, policies })
+      : new ClaudeCodeTriageRunner({
+          model: policies.models.triage,
+          effort: policies.models.effort.triage,
+          policies,
+          stripApiKeyEnv,
+          ...(config.CLAUDE_CODE_PATH !== undefined ? { pathToClaudeCodeExecutable: config.CLAUDE_CODE_PATH } : {}),
+        });
   const worktrees = new GitWorktreeAdapter({ dir: config.WORKTREES_DIR, repos: policies.repos });
   const planningRunner = new AgentSdkPlanningRunner({
     models: policies.models.planning,
     effort: policies.models.effort.planning,
     policies,
+    stripApiKeyEnv,
     ...(config.CLAUDE_CODE_PATH !== undefined ? { pathToClaudeCodeExecutable: config.CLAUDE_CODE_PATH } : {}),
   });
 
@@ -102,6 +116,7 @@ async function main(): Promise<void> {
       projects: policies.openproject.projectIds,
       worktreesDir: config.WORKTREES_DIR,
       models: { triage: policies.models.triage, planning: policies.models.planning },
+      aiCredentialsMode: config.aiCredentialsMode,
     });
   });
 

@@ -67,11 +67,18 @@ export const PLANNING_DISALLOWED_TOOLS = [
 
 const ENV_PASSTHROUGH = new Set(['PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'LC_ALL', 'TMPDIR', 'TERM', 'NODE_OPTIONS']);
 
-/** Only runtime basics plus `ANTHROPIC_*` / `CLAUDE_*`; hub secrets (OpenProject key, database URL) never reach the agent process. */
-export function agentSubprocessEnv(source: NodeJS.ProcessEnv): Record<string, string> {
+/** Credentials that must be absent from the agent subprocess env in `subscription` mode, so the Claude Code CLI falls back to its logged-in profile instead of API billing. */
+const API_KEY_ENV_VARS = new Set(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
+
+/**
+ * Only runtime basics plus `ANTHROPIC_*` / `CLAUDE_*`; hub secrets (OpenProject key, database URL) never reach the agent process.
+ * With `stripApiKeyEnv`, `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` are dropped too (subscription mode).
+ */
+export function agentSubprocessEnv(source: NodeJS.ProcessEnv, opts: { stripApiKeyEnv?: boolean | undefined } = {}): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(source)) {
     if (value === undefined) continue;
+    if (opts.stripApiKeyEnv && API_KEY_ENV_VARS.has(key)) continue;
     if (ENV_PASSTHROUGH.has(key) || key.startsWith('ANTHROPIC_') || key.startsWith('CLAUDE_')) env[key] = value;
   }
   env['CLAUDE_AGENT_SDK_CLIENT_APP'] = 'ai-delivery-hub/0.1.0';

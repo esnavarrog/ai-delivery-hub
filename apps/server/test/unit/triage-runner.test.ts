@@ -27,6 +27,7 @@ const validTriage = {
   duplicateCandidates: [{ ticketId: 't-0', displayKey: 'OP-4000', similarity: 0.8, reason: 'same symptom' }],
   alreadyImplementedHint: null,
   riskSignals: ['auth'],
+  assessment: null,
 };
 
 type CreateParams = Anthropic.MessageCreateParamsNonStreaming;
@@ -110,8 +111,9 @@ describe('AnthropicTriageRunner', () => {
     const result = await runner(client).runTriage(input());
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value).toEqual({ ...validTriage, alreadyImplementedHint: undefined });
+    expect(result.value).toEqual({ ...validTriage, alreadyImplementedHint: undefined, assessment: undefined });
     expect(result.value).not.toHaveProperty('alreadyImplementedHint', null);
+    expect(result.value).not.toHaveProperty('assessment', null);
     expect(result.usage).toMatchObject({ inputTokens: 1000, outputTokens: 200 });
     expect(result.usage.durationMs).toBeGreaterThanOrEqual(0);
   });

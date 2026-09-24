@@ -87,6 +87,13 @@ describe('TriageResult.assessment (optional, backward compatible)', () => {
     const bad = validAssessment({ management: { ...validAssessment().management, value: 0 } });
     expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
   });
+
+  it('accepts up to 5 functional questions and rejects a 6th', () => {
+    const upToFive = validAssessment({ functional: { clarity: 2, acceptanceCriteria: [], questions: ['q1', 'q2', 'q3', 'q4', 'q5'] } });
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: upToFive }).success).toBe(true);
+    const six = validAssessment({ functional: { clarity: 2, acceptanceCriteria: [], questions: ['q1', 'q2', 'q3', 'q4', 'q5', 'q6'] } });
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: six }).success).toBe(false);
+  });
 });
 
 describe('triageResultSchemaFor(repos)', () => {

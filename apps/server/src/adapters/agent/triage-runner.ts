@@ -3,9 +3,17 @@ import { triageResultSchemaFor, type AgentRunnerPort, type RunFailureReason, typ
 import type { EffortLevel } from '@ai-delivery-hub/policies';
 import { structuredOutputSchema, triageWireSchema } from './structured-output.js';
 import { MAX_TRIAGE_ATTEMPTS, parseTriageCandidate, triageCorrectiveMessage } from './triage-parse.js';
-import { buildTriageSystemPrompt, buildTriageUserPrompt, MAX_RECENT_TICKETS, type RecentTicket, type TriagePolicies, type TriageRunnerInput } from './triage-prompt.js';
+import {
+  buildTriageSystemPrompt,
+  buildTriageUserPrompt,
+  MAX_RECENT_TICKETS,
+  type ClarificationRound,
+  type RecentTicket,
+  type TriagePolicies,
+  type TriageRunnerInput,
+} from './triage-prompt.js';
 
-export { MAX_RECENT_TICKETS, type RecentTicket, type TriagePolicies, type TriageRunnerInput };
+export { MAX_RECENT_TICKETS, type ClarificationRound, type RecentTicket, type TriagePolicies, type TriageRunnerInput };
 
 /** The slice of the Anthropic client the runner needs; tests inject a scripted double. */
 export interface TriageMessagesClient {

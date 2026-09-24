@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Artifact, TicketEvent, TicketEventType } from '../../src/events/ticket-event.js';
-import { validTriageResult } from '../fixtures.js';
+import { validAssessment, validTriageResult } from '../fixtures.js';
 
 const base = {
   id: '6f1a2b3c-4d5e-4f60-8a9b-0c1d2e3f4a5b',
@@ -108,6 +108,24 @@ describe('requester_questions_asked payload', () => {
       TicketEvent.safeParse({ ...base, type: 'requester_questions_asked', actor, payload: { round: 0, questions: [{ id: 'q1', text: 'x' }] } })
         .success,
     ).toBe(false);
+  });
+
+  it('accepts an optional assessment (the questions round is not lost) and rejects a malformed one', () => {
+    const actor = { kind: 'ai', id: 'triager' };
+    const ok = TicketEvent.safeParse({
+      ...base,
+      type: 'requester_questions_asked',
+      actor,
+      payload: { round: 1, questions: [{ id: 'q1', text: 'How many users are affected?' }], assessment: validAssessment() },
+    });
+    expect(ok.success).toBe(true);
+    const bad = TicketEvent.safeParse({
+      ...base,
+      type: 'requester_questions_asked',
+      actor,
+      payload: { round: 1, questions: [{ id: 'q1', text: 'x' }], assessment: { ...validAssessment(), functional: { clarity: 9, acceptanceCriteria: [], questions: [] } } },
+    });
+    expect(bad.success).toBe(false);
   });
 });
 

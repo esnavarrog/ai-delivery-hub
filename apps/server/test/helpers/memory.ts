@@ -4,6 +4,7 @@ import {
   type Clock,
   type EventStore,
   type IdGenerator,
+  type ManualIntake,
   type TicketEvent,
   type TicketSource,
 } from '@ai-delivery-hub/domain';
@@ -106,6 +107,8 @@ export interface ReceivedOverrides {
   createdAt?: string;
   /** Manual (feature request) tickets only: the login of the ticket's requester/creator. */
   requesterUserId?: string;
+  /** Manual (feature request) tickets only: the structured problem-first intake. */
+  intake?: ManualIntake;
 }
 
 /** A well-formed `ticket_received` event so tests can seed a stream without going through ingest. */
@@ -121,6 +124,7 @@ export function receivedEvent(ticketId: string, overrides: ReceivedOverrides = {
     opUpdatedAt: '2026-09-14T09:00:00Z',
   };
   if (overrides.requesterUserId !== undefined) payload['requesterUserId'] = overrides.requesterUserId;
+  if (overrides.intake !== undefined) payload['intake'] = overrides.intake;
   return {
     id: `10000000-0000-4000-8000-${ticketId.replace(/[^0-9a-f]/gi, '').padStart(12, '0').slice(-12)}`,
     ticketId,

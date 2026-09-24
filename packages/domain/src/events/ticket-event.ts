@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Actor } from '../ticket/actor.js';
 import { TicketFlag } from '../ticket/ticket-state.js';
-import { Confidence, Effort, TriageResult } from '../triage/triage-result.js';
+import { Confidence, Effort, TriageAssessment, TriageResult } from '../triage/triage-result.js';
 
 export const TicketEventType = z.enum([
   // intake & triage
@@ -112,6 +112,12 @@ export type ClarificationQuestion = z.infer<typeof ClarificationQuestion>;
 export const RequesterQuestionsAskedPayload = z.object({
   round: z.number().int().min(1),
   questions: z.array(ClarificationQuestion).min(1),
+  /**
+   * The full three-lens assessment that produced these questions, so it is not lost while the
+   * ticket waits in `awaiting_requester` (only `triage_completed` otherwise carries it). Optional
+   * for backward compatibility with events written before this field existed.
+   */
+  assessment: TriageAssessment.optional(),
 });
 export type RequesterQuestionsAskedPayload = z.infer<typeof RequesterQuestionsAskedPayload>;
 

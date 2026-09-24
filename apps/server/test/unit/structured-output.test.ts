@@ -41,6 +41,7 @@ describe('triageWireSchema', () => {
     expect(props['targetRepo']).toEqual({ type: 'string', enum: ['backend-parkingapp', 'libredte-api'] });
     expect(json['required']).toEqual(Object.keys(props));
     expect(json['required']).toContain('alreadyImplementedHint');
+    expect(json['required']).toContain('assessment');
     const parsed = wire.parse({
       category: 'bug',
       riskTier: 'low',
@@ -49,8 +50,9 @@ describe('triageWireSchema', () => {
       duplicateCandidates: [],
       alreadyImplementedHint: null,
       riskSignals: [],
+      assessment: null,
     });
-    const { alreadyImplementedHint: _hint, ...domainShape } = parsed;
+    const { alreadyImplementedHint: _hint, assessment: _assessment, ...domainShape } = parsed;
     expect(TriageResult.safeParse(domainShape).success).toBe(true);
     expect(wire.safeParse({ ...parsed, targetRepo: 'unknown' }).success).toBe(false);
   });

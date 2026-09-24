@@ -28,6 +28,7 @@ const validTriage = {
   duplicateCandidates: [{ ticketId: 't-0', displayKey: 'OP-4000', similarity: 0.8, reason: 'same symptom' }],
   alreadyImplementedHint: null,
   riskSignals: ['auth'],
+  assessment: null,
 };
 
 type Recorded = { prompt: string; options: Options | undefined };
@@ -139,7 +140,7 @@ describe('ClaudeCodeTriageRunner', () => {
     const result = await runner(query).runTriage(input());
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value).toEqual({ ...validTriage, alreadyImplementedHint: undefined });
+    expect(result.value).toEqual({ ...validTriage, alreadyImplementedHint: undefined, assessment: undefined });
     expect(result.usage).toMatchObject({ inputTokens: 1000, outputTokens: 200, costUsd: 0.05 });
   });
 

@@ -30,8 +30,8 @@ const FunctionalAssessment = z.object({
   /** 1 = unclear request, 5 = fully specified. */
   clarity: z.number().int().min(1).max(5),
   acceptanceCriteria: z.array(z.string().min(1)),
-  /** Open questions for the requester; a non-empty list is what drives `awaiting_requester`. */
-  questions: z.array(z.string().min(1)),
+  /** Open questions for the requester; a non-empty list is what drives `awaiting_requester`. At most 5. */
+  questions: z.array(z.string().min(1)).max(5),
 });
 
 const TechnicalAssessment = z.object({

@@ -9,9 +9,9 @@ export type TriageParseOutcome = { ok: true; value: TriageResult } | { ok: false
 
 /**
  * Validates an already-parsed candidate against the wire schema, then the repo-bound domain
- * schema, converting the wire's nullable `alreadyImplementedHint` into the domain's optional
- * field (a `null` hint is dropped entirely rather than kept as `null`). Shared by
- * `AnthropicTriageRunner` (which parses the reply text into JSON first) and
+ * schema, converting the wire's nullable `alreadyImplementedHint` and `assessment` into the
+ * domain's optional fields (a `null` value is dropped entirely rather than kept as `null`).
+ * Shared by `AnthropicTriageRunner` (which parses the reply text into JSON first) and
  * `ClaudeCodeTriageRunner` (which receives the Agent SDK's already-decoded `structured_output`).
  */
 export function parseTriageCandidate(
@@ -21,9 +21,10 @@ export function parseTriageCandidate(
 ): TriageParseOutcome {
   const wireParsed = wire.safeParse(candidate);
   if (!wireParsed.success) return { ok: false, message: z.prettifyError(wireParsed.error) };
-  const { alreadyImplementedHint, ...rest } = wireParsed.data;
+  const { alreadyImplementedHint, assessment, ...rest } = wireParsed.data;
   const domainCandidate: Record<string, unknown> = { ...rest };
   if (alreadyImplementedHint !== null) domainCandidate['alreadyImplementedHint'] = alreadyImplementedHint;
+  if (assessment !== null) domainCandidate['assessment'] = assessment;
   const domainParsed = domainSchema.safeParse(domainCandidate);
   if (!domainParsed.success) return { ok: false, message: z.prettifyError(domainParsed.error) };
   return { ok: true, value: domainParsed.data };

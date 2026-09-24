@@ -1,4 +1,4 @@
-import type { AgentRunnerPort, Plan, PlanningRunInput, RunResult, TriageResult, TriageRunInput } from '@ai-delivery-hub/domain';
+import type { AgentRunnerPort, Plan, PlanningRunInput, RunResult, TriageAssessment, TriageResult, TriageRunInput } from '@ai-delivery-hub/domain';
 import type { AcquiredWorktree, RepoWorktreePort } from '../../src/adapters/repo/git-worktree.js';
 
 export const SHA_HEAD = 'f'.repeat(40);
@@ -13,6 +13,15 @@ export function triageResult(overrides: Partial<TriageResult> = {}): TriageResul
     summary: 'Login breaks when the session cookie is missing.',
     duplicateCandidates: [],
     riskSignals: ['auth'],
+    ...overrides,
+  };
+}
+
+export function triageAssessment(overrides: Partial<TriageAssessment> = {}): TriageAssessment {
+  return {
+    functional: { clarity: 4, acceptanceCriteria: ['Given a valid session, login succeeds'], questions: [] },
+    technical: { feasibility: 'feasible', risks: [], dependencies: [] },
+    management: { value: 4, reach: 3, confidence: 0.8, effort: 'M', recommendation: 'approve', rationale: 'High value, moderate effort.' },
     ...overrides,
   };
 }

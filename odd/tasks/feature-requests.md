@@ -35,7 +35,11 @@ Today tickets only enter via OpenProject or the Obsidian vault import. There is 
   - Checks (re-run by parent): `pnpm --filter @ai-delivery-hub/server test` 219 pass / 2 known fail (config env, structured-output→T3); `pnpm -r typecheck` 5/5 pass.
   - Review: assessed medium (slice_budget_reached, 1344 lines incl. generated drizzle snapshot) → consent **declined** by user → ordinary checks (writer self-verification + parent spot check). Boundary → c964a77.
   - Open: unknown logins get 401 although `repos.yaml` comment says "defaults to requester" — left as is (future users/roles work).
-- [ ] T3 — Triage AI: three-lens prompt + output schema (fixes structured-output test), RICE computed server-side, answers fed into re-triage (a `triaging` state reached via `requester_answers_submitted` = retriage with answers as context), transition to `awaiting_requester` when questions remain — the AI path appending `requester_questions_asked` must pass `payload` to the guard so the round check applies. Unit tests with fake runner. (route: delegated)
+- [x] T3 — Triage AI: three-lens prompt + output schema (fixes structured-output test), RICE computed server-side, answers fed into re-triage (a `triaging` state reached via `requester_answers_submitted` = retriage with answers as context), transition to `awaiting_requester` when questions remain — the AI path appending `requester_questions_asked` must pass `payload` to the guard so the round check applies. Unit tests with fake runner. (route: delegated)
+  - Rebased onto feat/spanish-ui cbac28a before T3 (picks up AI output language); post-rebase SHAs: T1 12e6af5, docs 2bbfac0/bcbddb7, T2 c57c5bc, docs cf6fa77. All checks unchanged after rebase.
+  - Commit 33723e1 (feat(triage)). Questions-round assessment persisted on the `requester_questions_asked` payload (T5 reads it from events). Checks (parent re-run): server 234 pass / 1 env fail (config); typecheck 5/5; structured-output now green.
+  - Review: high (process_boundary in test fake runner) → consent granted → 4 lenses → approved, acknowledged lineage `review-7fab91809226296e`. Advisory: re-triage idempotency from `triaging` (3 lenses agree — duplicate job starts a 2nd run), >5 questions hard-fails (burns corrective retry), stale doc, magic number, routing vs recommendation clarity, re-triage failure untested → fixed in 1d6b747: `canReTriage(events)` skips when a triage `run_started` follows the last `requester_answers_submitted`; `MAX_CLARIFICATION_QUESTIONS = 5` with truncation in `triage-parse` (no retry burned); `pendingQuestions()` helper; +4 tests (RED observed: duplicate job returned `failed` instead of `skipped`). Checks: server 238 pass / 1 env; domain 195/195; typecheck 5/5. Assess 1d6b747: medium, 126 lines → `under_budget` (pending in slice, boundary stays 33723e1).
+  - Known limitation (pre-existing parity): a run that crashes without `run_failed` leaves the ticket in `triaging`, same as first-leg triage today.
 - [ ] T4 — Web requester: `/solicitudes/nueva` form, `/solicitudes` list with state and pending questions, answer form (fixes action-resolver invariant). Spanish copy. (route: delegated)
 - [ ] T5 — Web lead: assessment card (three lenses + RICE) on ticket page, confirm dialog with score overrides, `/inbox` restricted to lead/admin, nav links by role. (route: delegated)
 
@@ -60,4 +64,4 @@ Forecast ~1500–2000 authored changed lines (> 400) → strategy `ask-on-risk`;
 - 2026-09-24: worktree + branch created, `pnpm install` ok, codegraph initialized.
 
 ## Next step
-T3 triage AI (delegated writer).
+T4 web requester (delegated writer).

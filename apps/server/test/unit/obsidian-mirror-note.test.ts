@@ -11,6 +11,11 @@ const fm: MirrorFrontmatter = {
 };
 
 describe('renderMirrorNote', () => {
+  it('writes the new Spanish marker', () => {
+    expect(MIRROR_MARKER).toContain('notas');
+    expect(renderMirrorNote(fm, '')).toContain(MIRROR_MARKER);
+  });
+
   it('renders hub-owned frontmatter, the marker, then the body verbatim', () => {
     const rendered = renderMirrorNote(fm, 'My own notes.\n- todo\n');
     expect(rendered).toBe(
@@ -66,5 +71,11 @@ describe('extractUserContent', () => {
 
   it('returns empty for a not-yet-existing file', () => {
     expect(extractUserContent(undefined)).toBe('');
+  });
+
+  it('still extracts user content from a note written with the legacy English marker', () => {
+    const legacyMarker = '<!-- hub:notes — everything below is yours -->';
+    const existing = `---\nkey: OP-1\n---\n\n${legacyMarker}\nOld note text.\n`;
+    expect(extractUserContent(existing)).toBe('Old note text.\n');
   });
 });

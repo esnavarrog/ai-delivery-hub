@@ -58,6 +58,10 @@ In `subscription` mode, both agent-SDK-backed runners strip `ANTHROPIC_API_KEY` 
 
 Prompt assembly follows the security rules: system prompt = role instructions + policies; every external text (ticket subject/description, recent tickets for duplicate detection, plan comments) goes into the user turn wrapped by `wrapUntrusted(...)` and is never placed in the system prompt.
 
+### Output language
+
+`repos.yaml` → `output.language` (`es` | `en`, default `es`) controls the language of AI-generated free text: triage's `summary` and `riskSignals`, and planning's `goal`, `steps[].title`/`detail`, `risks[].description`/`mitigation`, `rollback`, `acceptanceCriteria[].given`/`when`/`then` and `openQuestions`. Both triage runners (via the shared `triage-prompt.ts` builder) and `AgentSdkPlanningRunner` inject an instruction built by `apps/server/src/adapters/agent/output-language.ts` into the system prompt. JSON keys, enum values (`category`, `riskTier`, etc.), file paths, commands and code are never translated regardless of this setting. The web UI (`apps/web`) is a separate, hardcoded Spanish interface (see "Web" below) unrelated to this setting.
+
 ### Step policies
 
 `packages/policies/steps/{triage,planning,implement,review,qa,release}.md` document each hub pipeline step: purpose, inputs, an output contract stated so it can be checked mechanically, rules and anti-goals. `loadPolicies` reads them into `policies.docs.steps` (`PoliciesError` if any is missing). Only the `triage` and `planning` docs are injected into a runner's system prompt today (both triage runners and `AgentSdkPlanningRunner`, right after the role instructions); `implement`, `review`, `qa` and `release` are loaded and validated but have no runner yet — they document the contract a later phase implements against. These docs are adapted from [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)'s SDD/review skills (MIT-licensed) for this headless pipeline; see `packages/policies/steps/NOTICE.md` for the attribution.
@@ -71,7 +75,7 @@ Prompt assembly follows the security rules: system prompt = role instructions + 
 
 ## Web
 
-`apps/web` is the review UI (Vite 8, React 19, TanStack Router + Query, Tailwind v4, shadcn/ui). It talks to the server only through `packages/contracts` types.
+`apps/web` is the review UI (Vite 8, React 19, TanStack Router + Query, Tailwind v4, shadcn/ui). It talks to the server only through `packages/contracts` types. The UI copy is Spanish (neutral/professional register), from a typed dictionary and enum label maps in `apps/web/src/i18n/` (`es.ts`, `labels.ts`); dates and numbers use `es-CL`. This is independent from the AI `output.language` policy setting above.
 
 ```sh
 pnpm dev:web                      # http://localhost:5173, proxies /api -> http://localhost:3100
@@ -142,7 +146,7 @@ An Obsidian vault is optional (`OBSIDIAN_VAULT_DIR`) and plays two roles: a seco
     ---
     It leaks from the side when the tank is full.
     ```
-  - `<OBSIDIAN_TICKETS_DIR>/<key>.md` — hub-managed mirror, one file per ticket (`OP-<workPackageId>` or the manual `M-0001` key). Frontmatter (key, source, title, state, riskTier, targetRepo, updatedAt, hub URL) is owned by the hub and rewritten on every state-changing event; a marker line (`<!-- hub:notes — everything below is yours -->`) separates it from the body below, which is never touched by the hub. Writes are atomic (temp file + rename) and a mirror failure is logged, never breaks the event append.
+  - `<OBSIDIAN_TICKETS_DIR>/<key>.md` — hub-managed mirror, one file per ticket (`OP-<workPackageId>` or the manual `M-0001` key). Frontmatter (key, source, title, state, riskTier, targetRepo, updatedAt, hub URL) is owned by the hub, in English (machine-owned keys and enum values), and rewritten on every state-changing event; a marker line in Spanish (`<!-- hub:notas — todo lo que sigue es tuyo -->`) separates it from the body below, which is never touched by the hub. Notes written before this change carried the old English marker (`<!-- hub:notes — everything below is yours -->`); `extractUserContent` still recognizes it so existing notes keep parsing correctly, but every rewrite now writes the Spanish marker. Writes are atomic (temp file + rename) and a mirror failure is logged, never breaks the event append.
 - **Import**: `POST /api/ingest/fetch` parses every `*.md` in the inbox. A valid note is moved to `<OBSIDIAN_TICKETS_DIR>/<key>.md` (so it becomes that ticket's mirror, body preserved) and a manual ticket is created, going through the exact same `ticket_received` → triage → planning path as an OpenProject ticket. An invalid note (e.g. missing `title`) is reported in the fetch summary (`obsidian.errors: [{file, message}]`) and left in place, untouched. The note body (and the `repo` hint) is untrusted external text — it flows through the same `wrapUntrusted` path as an OpenProject description and is never placed in a system prompt.
 - Path safety: `OBSIDIAN_INBOX_DIR`/`OBSIDIAN_TICKETS_DIR` are validated at startup (relative, no `..`); at import time every note's resolved realpath is checked to stay inside the vault, so a symlink planted inside the vault that points elsewhere is reported as an error rather than followed.
 - Terminal-state archiving (moving a finished ticket's mirror note elsewhere in the vault) is not implemented; mirror notes stay in `<OBSIDIAN_TICKETS_DIR>` for every state, including terminal ones.

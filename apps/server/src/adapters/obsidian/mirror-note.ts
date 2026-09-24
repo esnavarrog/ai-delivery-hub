@@ -2,7 +2,10 @@ import { stringify as stringifyYaml } from 'yaml';
 import { parseNote } from './note.js';
 
 /** Separates the hub-owned frontmatter from the user's own notes; everything below is never touched by the hub. */
-export const MIRROR_MARKER = '<!-- hub:notes — everything below is yours -->';
+export const MIRROR_MARKER = '<!-- hub:notas — todo lo que sigue es tuyo -->';
+
+/** Old English marker, kept only so notes written before the Spanish switch still parse correctly. */
+const LEGACY_MIRROR_MARKER = '<!-- hub:notes — everything below is yours -->';
 
 export interface MirrorFrontmatter {
   key: string;
@@ -40,7 +43,9 @@ export function renderMirrorNote(frontmatter: MirrorFrontmatter, userBody: strin
  */
 export function extractUserContent(existing: string | undefined): string {
   if (existing === undefined) return '';
-  const markerIndex = existing.indexOf(MIRROR_MARKER);
-  if (markerIndex !== -1) return existing.slice(markerIndex + MIRROR_MARKER.length).replace(/^\r?\n/, '');
+  for (const marker of [MIRROR_MARKER, LEGACY_MIRROR_MARKER]) {
+    const markerIndex = existing.indexOf(marker);
+    if (markerIndex !== -1) return existing.slice(markerIndex + marker.length).replace(/^\r?\n/, '');
+  }
   return parseNote(existing).body;
 }

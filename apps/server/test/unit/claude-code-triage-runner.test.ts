@@ -242,6 +242,18 @@ describe('ClaudeCodeTriageRunner', () => {
     expect(await r.runTriage(input())).toMatchObject({ ok: false, reason: 'provider_error', message: expect.stringMatching(/CLI crashed/) });
   });
 
+  it('maps the error_max_budget_usd result subtype to budget_exhausted', async () => {
+    const { query } = fakeQuery([[failure('error_max_budget_usd', ['budget exceeded'])]]);
+    const result = await runner(query).runTriage(input());
+    expect(result).toMatchObject({ ok: false, reason: 'budget_exhausted', message: expect.stringMatching(/USD budget/) });
+  });
+
+  it('maps the error_max_structured_output_retries result subtype to invalid_output', async () => {
+    const { query } = fakeQuery([[failure('error_max_structured_output_retries', ['schema mismatch after retries'])]]);
+    const result = await runner(query).runTriage(input());
+    expect(result).toMatchObject({ ok: false, reason: 'invalid_output', message: expect.stringMatching(/schema mismatch after retries/) });
+  });
+
   it('maps a thrown query error to provider_error and still closes the query', async () => {
     const calls: Recorded[] = [];
     const query = (params: { prompt: string; options?: Options }) => {

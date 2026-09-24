@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx src/adapters/db/migrate.ts"
+    "db:migrate": "tsx src/adapters/db/migrate.ts",
+    "smoke:triage": "tsx scripts/smoke-triage.ts"
   },
   "dependencies": {
     "@ai-delivery-hub/contracts": "workspace:*",

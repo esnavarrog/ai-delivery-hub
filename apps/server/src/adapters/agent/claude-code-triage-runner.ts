@@ -23,6 +23,16 @@ export interface ClaudeCodeTriageRunnerOptions {
   maxTurns?: number;
 }
 
+/**
+ * `outputFormat: {type: 'json_schema'}` delivers its result through the SDK's "end-turn tool"
+ * mechanism (see `sdk.d.ts`'s `resumeSessionAt` docs): the turn ends on a tool_result carrier
+ * followed by a `structured_output` attachment, with no trailing assistant message — the whole
+ * exchange is one turn. With `tools: []` there is nothing else for the model to call, so a single
+ * classification is expected to consume exactly one turn; 2 leaves one turn of margin for a model
+ * that emits a plain-text reply before finalizing. Verified empirically once via
+ * `apps/server/scripts/smoke-triage.ts` (see its output in the feature doc / PR description),
+ * since the SDK's typings and comments describe the mechanism but not an exact turn count.
+ */
 export const DEFAULT_MAX_TURNS = 2;
 
 /**

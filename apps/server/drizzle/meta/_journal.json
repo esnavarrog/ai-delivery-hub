@@ -36,6 +36,13 @@
       "when": 1790277156025,
       "tag": "0004_even_mimic",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790283620322,
+      "tag": "0005_burly_stranger",
+      "breakpoints": true
     }
   ]
 }

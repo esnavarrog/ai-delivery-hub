@@ -1,4 +1,4 @@
-import { index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, numeric, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -32,6 +32,16 @@ export const tickets = pgTable(
     department: text('department'),
     /** The ticket's creator/requester login; drives requester-scoped reads and the answer guard. */
     requesterUserId: text('requester_user_id'),
+    /** How many clarification rounds have been asked so far; set by `requester_questions_asked`. */
+    clarificationRound: integer('clarification_round'),
+    /** Outstanding clarification questions; reset to 0 by `requester_answers_submitted`. */
+    pendingQuestionCount: integer('pending_question_count'),
+    /** Effective RICE inputs, set by `triage_completed`'s assessment and overridable by `triage_confirmed`. */
+    scoreValue: integer('score_value'),
+    scoreReach: integer('score_reach'),
+    scoreConfidence: real('score_confidence'),
+    scoreEffort: text('score_effort'),
+    riceScore: real('rice_score'),
     priority: text('priority').notNull(),
     planVersionCount: integer('plan_version_count').notNull().default(0),
     unresolvedCommentCount: integer('unresolved_comment_count').notNull().default(0),

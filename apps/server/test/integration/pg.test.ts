@@ -139,6 +139,56 @@ describe.skipIf(!url)('Postgres adapters', () => {
       expect(hookCalls).toEqual(['ticket_received:received', 'ticket_updated_from_op:received']);
       expect(await projection.get('nope')).toBeUndefined();
     });
+
+    it('persists clarification and RICE fields set by requester_questions_asked / triage_completed', async () => {
+      const projection = new PgTicketProjection(handle.db);
+      const projecting = new ProjectingEventStore(store, projection);
+      const ticketId = 't-rice-1';
+      const assessment = {
+        functional: { clarity: 2, acceptanceCriteria: [], questions: ['What repo?'] },
+        technical: { feasibility: 'uncertain' as const, risks: [], dependencies: [] },
+        management: { value: 4, reach: 3, confidence: 0.8 as const, effort: 'M' as const, recommendation: 'needs_info' as const, rationale: 'unclear scope' },
+      };
+      await projecting.append(ticketId, 0, [event(ticketId, 1, 'ticket_received', receivedPayload(9001))]);
+      await projecting.append(ticketId, 1, [event(ticketId, 2, 'triage_started')]);
+      await projecting.append(ticketId, 2, [
+        event(ticketId, 3, 'requester_questions_asked', { round: 1, questions: [{ id: 'q1', text: 'What repo?' }], assessment }),
+      ]);
+
+      const afterQuestions = await projection.get(ticketId);
+      expect(afterQuestions?.snapshot).toMatchObject({
+        state: 'awaiting_requester',
+        clarificationRound: 1,
+        pendingQuestionCount: 1,
+      });
+
+      await projecting.append(ticketId, 3, [
+        event(ticketId, 4, 'requester_answers_submitted', { round: 1, answers: [{ questionId: 'q1', text: 'repo-a' }] }),
+      ]);
+      await projecting.append(ticketId, 4, [
+        event(ticketId, 5, 'triage_completed', {
+          category: 'feature',
+          riskTier: 'low',
+          targetRepo: 'repo-a',
+          summary: 'Add the thing',
+          duplicateCandidates: [],
+          riskSignals: [],
+          assessment,
+        }),
+      ]);
+
+      const listed = await projection.list({});
+      const snap = listed.find((t) => t.id === ticketId);
+      expect(snap).toMatchObject({
+        clarificationRound: 1,
+        pendingQuestionCount: 0,
+        value: 4,
+        reach: 3,
+        confidence: 0.8,
+        effort: 'M',
+        riceScore: 4.8,
+      });
+    });
   });
 
   describe('PgWatermarkStore', () => {

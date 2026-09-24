@@ -266,7 +266,7 @@ describe('HTTP app', () => {
       expect(triageQueue).toContain(ticketId);
     });
 
-    it("409 when someone else's requester answers, or the round is stale", async () => {
+    it("404 (not leaking existence) when a different requester answers someone else's ticket; 409 when its own requester answers with a stale round", async () => {
       const { app, store } = await harness();
       const ticketId = await awaitingRequesterTicket(app);
       const events = await store.load(ticketId);
@@ -275,7 +275,8 @@ describe('HTTP app', () => {
         { id: '71000000-0000-4000-8000-000000000002', ticketId, seq: events.length + 2, type: 'requester_questions_asked', actor: { kind: 'ai', id: 'x' }, artifacts: [], payload: { round: 1, questions: [{ id: 'q1', text: 'Which region?' }] }, createdAt: '2026-09-14T12:01:00.000Z' } as TicketEvent,
       ]);
       const wrongUser = await app.request(`/api/tickets/${ticketId}/answers`, post('req2', { round: 1, answers: [{ questionId: 'q1', text: 'x' }] }));
-      expect(wrongUser.status).toBe(409);
+      expect(wrongUser.status).toBe(404);
+      expect(await json(wrongUser)).toEqual({ error: { code: 'not_found', message: expect.any(String) } });
       const staleRound = await app.request(`/api/tickets/${ticketId}/answers`, post('req', { round: 2, answers: [{ questionId: 'q1', text: 'x' }] }));
       expect(staleRound.status).toBe(409);
     });

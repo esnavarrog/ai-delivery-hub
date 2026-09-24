@@ -270,7 +270,11 @@ export function createApp(deps: AppDeps): Hono<Env> {
   });
 
   app.post('/api/tickets/:id/answers', async (c) => {
-    const result = await deps.commands.submitAnswers(c.req.param('id'), c.get('user'), await parseBody(c, SubmitAnswersBody));
+    const id = c.req.param('id');
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
+    const result = await deps.commands.submitAnswers(id, c.get('user'), await parseBody(c, SubmitAnswersBody));
     const body: EnqueuedResponse = { ticket: result.snapshot, enqueued: result.enqueued };
     return c.json(body);
   });

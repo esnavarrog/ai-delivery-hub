@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigError, loadConfig } from '../../src/config.js';
+import { ConfigError, loadConfig, resolveAiCredentialsMode } from '../../src/config.js';
 
 const valid = {
   DATABASE_URL: 'postgres://hub:hub@localhost:5433/hub',
@@ -33,5 +33,52 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...valid, OP_API_KEY: undefined })).toThrow(ConfigError);
     expect(() => loadConfig({ ...valid, DATABASE_URL: 'mysql://x' })).toThrow(/postgres/);
     expect(() => loadConfig({ ...valid, OP_WEBHOOK_SECRET: 'short' })).toThrow(/16/);
+  });
+});
+
+describe('resolveAiCredentialsMode', () => {
+  it('auto resolves to api-key when a non-empty key is present, else subscription', () => {
+    expect(resolveAiCredentialsMode('auto', 'sk-test')).toBe('api-key');
+    expect(resolveAiCredentialsMode('auto', undefined)).toBe('subscription');
+    expect(resolveAiCredentialsMode('auto', '')).toBe('subscription');
+  });
+
+  it('an explicit mode is returned as-is regardless of the key', () => {
+    expect(resolveAiCredentialsMode('subscription', 'sk-test')).toBe('subscription');
+    expect(resolveAiCredentialsMode('subscription', undefined)).toBe('subscription');
+    expect(resolveAiCredentialsMode('api-key', undefined)).toBe('api-key');
+    expect(resolveAiCredentialsMode('api-key', 'sk-test')).toBe('api-key');
+  });
+});
+
+describe('loadConfig: AI_CREDENTIALS', () => {
+  it('defaults to auto and resolves to subscription when no ANTHROPIC_API_KEY is set', () => {
+    const config = loadConfig({ ...valid, ANTHROPIC_API_KEY: '' });
+    expect(config.AI_CREDENTIALS).toBe('auto');
+    expect(config.aiCredentialsMode).toBe('subscription');
+  });
+
+  it('resolves auto to api-key when ANTHROPIC_API_KEY is set', () => {
+    const config = loadConfig({ ...valid, ANTHROPIC_API_KEY: 'sk-test' });
+    expect(config.aiCredentialsMode).toBe('api-key');
+  });
+
+  it('keeps subscription mode even when a key is present', () => {
+    const config = loadConfig({ ...valid, AI_CREDENTIALS: 'subscription', ANTHROPIC_API_KEY: 'sk-test' });
+    expect(config.aiCredentialsMode).toBe('subscription');
+  });
+
+  it('accepts api-key mode with a key set', () => {
+    const config = loadConfig({ ...valid, AI_CREDENTIALS: 'api-key', ANTHROPIC_API_KEY: 'sk-test' });
+    expect(config.aiCredentialsMode).toBe('api-key');
+  });
+
+  it('fails startup with a clear message when api-key mode has no key', () => {
+    expect(() => loadConfig({ ...valid, AI_CREDENTIALS: 'api-key', ANTHROPIC_API_KEY: '' })).toThrow(/AI_CREDENTIALS=api-key.*ANTHROPIC_API_KEY/s);
+    expect(() => loadConfig({ ...valid, AI_CREDENTIALS: 'api-key' })).toThrow(ConfigError);
+  });
+
+  it('rejects an unknown AI_CREDENTIALS value', () => {
+    expect(() => loadConfig({ ...valid, AI_CREDENTIALS: 'yolo' })).toThrow(ConfigError);
   });
 });

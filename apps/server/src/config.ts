@@ -28,16 +28,38 @@ export const Env = z.object({
   ),
   /** Optional explicit path to the Claude Code binary for the Agent SDK; defaults to the SDK's bundled lookup. */
   CLAUDE_CODE_PATH: z.preprocess(emptyToUndefined, nonEmpty.optional()),
+  /** Claude credentials for the model, if set explicitly (an empty string is treated as unset). */
+  ANTHROPIC_API_KEY: z.preprocess(emptyToUndefined, nonEmpty.optional()),
+  /**
+   * How triage + planning authenticate to Claude: `auto` picks `api-key` when `ANTHROPIC_API_KEY`
+   * is set, else `subscription`; `subscription` always uses the Claude Code CLI login; `api-key`
+   * always requires `ANTHROPIC_API_KEY` (checked below, after zod parsing resolves the enum).
+   */
+  AI_CREDENTIALS: z.preprocess(emptyToUndefined, z.enum(['auto', 'subscription', 'api-key']).default('auto')),
 });
-export type Config = z.infer<typeof Env>;
+export type EnvConfig = z.infer<typeof Env>;
+
+/** What the server actually runs with, once `auto` has been resolved against `ANTHROPIC_API_KEY`. */
+export type ResolvedAiCredentialsMode = 'subscription' | 'api-key';
+export type Config = EnvConfig & { aiCredentialsMode: ResolvedAiCredentialsMode };
 
 export class ConfigError extends Error {
   override readonly name = 'ConfigError';
+}
+
+/** Pure: `auto` follows whether a non-empty API key is present; an explicit mode is returned as-is. */
+export function resolveAiCredentialsMode(mode: EnvConfig['AI_CREDENTIALS'], apiKey: string | undefined): ResolvedAiCredentialsMode {
+  if (mode !== 'auto') return mode;
+  return apiKey && apiKey.length > 0 ? 'api-key' : 'subscription';
 }
 
 /** Validates the process environment; secrets never leave this object as strings in logs. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.safeParse(env);
   if (!parsed.success) throw new ConfigError(`invalid environment:\n${z.prettifyError(parsed.error)}`);
-  return parsed.data;
+  const aiCredentialsMode = resolveAiCredentialsMode(parsed.data.AI_CREDENTIALS, parsed.data.ANTHROPIC_API_KEY);
+  if (aiCredentialsMode === 'api-key' && !parsed.data.ANTHROPIC_API_KEY) {
+    throw new ConfigError('AI_CREDENTIALS=api-key requires a non-empty ANTHROPIC_API_KEY to be set');
+  }
+  return { ...parsed.data, aiCredentialsMode };
 }

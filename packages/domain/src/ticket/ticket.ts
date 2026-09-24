@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TicketSource } from './ticket-source.js';
 import { RiskTier, TicketCategory, TicketFlag, TicketState } from './ticket-state.js';
 
 /** Mirrors OpenProject's default priority set. */
@@ -12,9 +13,9 @@ export type TicketPriority = z.infer<typeof TicketPriority>;
  */
 export const TicketSnapshot = z.object({
   id: z.string().min(1),
-  opWorkPackageId: z.number().int().positive(),
-  opProjectId: z.number().int().positive(),
-  opLockVersion: z.number().int().min(0),
+  source: TicketSource,
+  /** `OP-<workPackageId>` or the manual `M-0001` key; see `ticketDisplayKey`. */
+  displayKey: z.string().min(1),
   subject: z.string().min(1),
   state: TicketState,
   flags: z.array(TicketFlag),

@@ -37,9 +37,8 @@ console.log(
 const now = new Date().toISOString();
 const ticket: TicketSnapshot = {
   id: 'smoke-ticket-1',
-  opWorkPackageId: 999_999,
-  opProjectId: 1,
-  opLockVersion: 0,
+  source: { kind: 'openproject', workPackageId: 999_999, projectId: 1, lockVersion: 0 },
+  displayKey: 'OP-999999',
   subject: 'Smoke test: typo in README',
   state: 'triaging',
   flags: [],
@@ -57,8 +56,8 @@ const untrustedContext = wrapUntrusted(
     'Type: bug',
     'OpenProject status: New',
     `Priority: ${ticket.priority}`,
-    `OpenProject project id: ${ticket.opProjectId}`,
-    `Work package: #${ticket.opWorkPackageId}`,
+    `OpenProject project id: ${ticket.source.kind === 'openproject' ? ticket.source.projectId : '-'}`,
+    `Work package: ${ticket.displayKey}`,
     '',
     'Description:',
     'README.md says "recieve" instead of "receive" in the Getting started section. Fix the typo.',

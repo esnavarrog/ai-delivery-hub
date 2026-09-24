@@ -54,7 +54,11 @@ export function reduceTicket(snapshot: TicketSnapshot, event: TicketEvent): Tick
       next.ownerUserId = event.payload.ownerUserId;
       break;
     case 'ticket_updated_from_op':
-      next.opLockVersion = event.payload.opLockVersion;
+      // Only an openproject-sourced ticket can receive this event (the ingest index only finds
+      // OP tickets by work package id); guard defensively rather than assume.
+      if (snapshot.source.kind === 'openproject') {
+        next.source = { ...snapshot.source, lockVersion: event.payload.opLockVersion };
+      }
       if (event.payload.subject !== undefined) next.subject = event.payload.subject;
       break;
     case 'plan_version_created':

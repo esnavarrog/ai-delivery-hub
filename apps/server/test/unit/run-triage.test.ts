@@ -63,7 +63,15 @@ describe('RunTriage', () => {
   it('builds the runner input from policies and wraps ticket text as untrusted data', async () => {
     runner.scriptTriage({ ok: true, value: triageResult(), usage: okUsage });
     recent = [
-      { ...(await snapshot()), id: 't-0', opWorkPackageId: 4000, subject: 'Older ticket', state: 'plan_review', targetRepo: 'libredte-api' },
+      {
+        ...(await snapshot()),
+        id: 't-0',
+        source: { kind: 'openproject', workPackageId: 4000, projectId: 15, lockVersion: 1 },
+        displayKey: 'OP-4000',
+        subject: 'Older ticket',
+        state: 'plan_review',
+        targetRepo: 'libredte-api',
+      },
       await snapshot(), // the ticket itself must be excluded
     ];
     await useCase.execute('t-1');

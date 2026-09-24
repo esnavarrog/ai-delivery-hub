@@ -21,7 +21,7 @@ describe('TriageResult', () => {
   it('rejects similarity outside 0..1', () => {
     const r = TriageResult.safeParse({
       ...validTriageResult(),
-      duplicateCandidates: [{ ticketId: 't-2', opWorkPackageId: 42, similarity: 1.2, reason: 'same' }],
+      duplicateCandidates: [{ ticketId: 't-2', displayKey: 'OP-42', similarity: 1.2, reason: 'same' }],
     });
     expect(r.success).toBe(false);
   });

@@ -32,7 +32,7 @@ export function TriageSuggestionCard({ ticket, triage }: { ticket: TicketSnapsho
             <ul className="flex flex-col gap-1">
               {triage.duplicateCandidates.map((d) => (
                 <li key={d.ticketId}>
-                  <span className="font-medium">#{d.opWorkPackageId}</span> <span className="text-muted-foreground">({Math.round(d.similarity * 100)}%)</span> {d.reason}
+                  <span className="font-medium">{d.displayKey}</span> <span className="text-muted-foreground">({Math.round(d.similarity * 100)}%)</span> {d.reason}
                 </li>
               ))}
             </ul>

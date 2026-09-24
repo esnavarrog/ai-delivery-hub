@@ -22,6 +22,13 @@
       "when": 1790263604398,
       "tag": "0002_drop_op_sync_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790264980066,
+      "tag": "0003_manual_ticket_source",
+      "breakpoints": true
     }
   ]
 }

@@ -91,9 +91,9 @@ export function BoardContainer() {
                     type="button"
                     onClick={() => open(t)}
                     className="flex flex-col gap-1 rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:border-primary/40"
-                    aria-label={`Open ticket #${t.opWorkPackageId} ${t.subject}`}
+                    aria-label={`Open ticket ${t.displayKey} ${t.subject}`}
                   >
-                    <span className="font-mono text-xs text-muted-foreground">#{t.opWorkPackageId}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{t.displayKey}</span>
                     <span className="line-clamp-2 font-medium">{t.subject}</span>
                     <span className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                       <RiskBadge tier={t.riskTier} />

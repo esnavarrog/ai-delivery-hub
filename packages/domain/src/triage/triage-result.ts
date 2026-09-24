@@ -5,7 +5,8 @@ export const SUMMARY_MAX_LENGTH = 600;
 
 export const DuplicateCandidate = z.object({
   ticketId: z.string().min(1),
-  opWorkPackageId: z.number().int().positive(),
+  /** The candidate's `OP-<id>` or `M-000N` display key (see `ticketDisplayKey`). */
+  displayKey: z.string().min(1),
   similarity: z.number().min(0).max(1),
   reason: z.string().min(1),
 });

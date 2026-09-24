@@ -1,18 +1,22 @@
-import { replay, TicketPriority, TicketUpdatedFromOpPayload, type TicketEvent, type TicketSnapshot } from '@ai-delivery-hub/domain';
+import { replay, ticketDisplayKey, TicketPriority, TicketSource, TicketUpdatedFromOpPayload, type TicketEvent, type TicketSnapshot } from '@ai-delivery-hub/domain';
 import { z } from 'zod';
 
-/** Payload of `ticket_received`: the OpenProject facts the hub needs to build the first snapshot. */
+/**
+ * Payload of `ticket_received`: the facts the hub needs to build the first snapshot, for either an
+ * OpenProject work package or a manually authored ticket (see `TicketSource`). OP-only fields
+ * (`status`, `type`, `assignee`, `opUpdatedAt`) are absent on a manual ticket.
+ */
 export const TicketReceivedPayload = z.object({
-  opWorkPackageId: z.number().int().positive(),
-  opProjectId: z.number().int().positive(),
-  opLockVersion: z.number().int().min(0),
+  source: TicketSource,
   subject: z.string().min(1),
   description: z.string(),
-  status: z.string(),
-  type: z.string(),
+  status: z.string().optional(),
+  type: z.string().optional(),
   assignee: z.object({ id: z.number().int().positive(), name: z.string() }).optional(),
   priority: TicketPriority,
-  opUpdatedAt: z.string(),
+  opUpdatedAt: z.string().optional(),
+  /** Manual tickets only: free-form tags carried over from the Obsidian note frontmatter. */
+  tags: z.array(z.string().min(1)).optional(),
 });
 export type TicketReceivedPayload = z.infer<typeof TicketReceivedPayload>;
 
@@ -23,9 +27,8 @@ export function initialSnapshot(received: TicketEvent): TicketSnapshot {
   const p = TicketReceivedPayload.parse(received.payload);
   return {
     id: received.ticketId,
-    opWorkPackageId: p.opWorkPackageId,
-    opProjectId: p.opProjectId,
-    opLockVersion: p.opLockVersion,
+    source: p.source,
+    displayKey: ticketDisplayKey(p.source),
     subject: p.subject,
     state: 'received',
     flags: [],

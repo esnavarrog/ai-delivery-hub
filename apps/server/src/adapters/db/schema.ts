@@ -2,14 +2,24 @@ import { index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, 
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
-/** Read model of a ticket (see domain `TicketSnapshot`) plus `description` and the projected head seq. */
+/**
+ * Read model of a ticket (see domain `TicketSnapshot`) plus `description` and the projected head seq.
+ * `sourceKind` discriminates an OpenProject work package (`opWorkPackageId`/`opProjectId`/
+ * `opLockVersion` set, `manualKey` null) from a manual ticket (`manualKey` set, OP columns null).
+ * Both id columns are individually `unique()`; Postgres treats NULLs as distinct for uniqueness, so
+ * any number of manual rows (all-null OP columns) and OP rows (all-null `manualKey`) coexist.
+ * `displayKey` is denormalized (`OP-<id>` or the manual key) so list/detail reads never recompute it.
+ */
 export const tickets = pgTable(
   'tickets',
   {
     id: text('id').primaryKey(),
-    opWorkPackageId: integer('op_work_package_id').notNull().unique(),
-    opProjectId: integer('op_project_id').notNull(),
-    opLockVersion: integer('op_lock_version').notNull(),
+    sourceKind: text('source_kind').notNull(),
+    opWorkPackageId: integer('op_work_package_id').unique(),
+    opProjectId: integer('op_project_id'),
+    opLockVersion: integer('op_lock_version'),
+    manualKey: text('manual_key').unique(),
+    displayKey: text('display_key').notNull(),
     subject: text('subject').notNull(),
     description: text('description').notNull().default(''),
     state: text('state').notNull(),
@@ -136,4 +146,10 @@ export const ingestWatermarks = pgTable('ingest_watermarks', {
   projectId: integer('project_id').primaryKey(),
   since: ts('since').notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Single-row atomic counter backing manual ticket keys (`M-0001`, `M-0002`, ...); the row is created on first use. */
+export const manualTicketCounter = pgTable('manual_ticket_counter', {
+  id: text('id').primaryKey(),
+  nextValue: integer('next_value').notNull().default(1),
 });

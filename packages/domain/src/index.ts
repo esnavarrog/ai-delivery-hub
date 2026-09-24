@@ -1,5 +1,6 @@
 // ticket
 export * from './ticket/ticket-state.js';
+export * from './ticket/ticket-source.js';
 export * from './ticket/actor.js';
 export * from './ticket/ticket.js';
 export * from './ticket/transitions.js';

@@ -14,10 +14,15 @@ describe('TicketSnapshot', () => {
     expect(r.success).toBe(true);
   });
 
-  it('rejects negative counters and non-integer OpenProject ids', () => {
+  it('rejects negative counters and a non-integer OpenProject work package id', () => {
     expect(TicketSnapshot.safeParse(baseSnapshot({ planVersionCount: -1 })).success).toBe(false);
     expect(TicketSnapshot.safeParse(baseSnapshot({ unresolvedCommentCount: 1.5 })).success).toBe(false);
-    expect(TicketSnapshot.safeParse(baseSnapshot({ opWorkPackageId: 1.2 })).success).toBe(false);
+    expect(TicketSnapshot.safeParse(baseSnapshot({ source: { kind: 'openproject', workPackageId: 1.2, projectId: 7, lockVersion: 3 } })).success).toBe(false);
+  });
+
+  it('accepts a manual ticket source', () => {
+    const r = TicketSnapshot.safeParse(baseSnapshot({ source: { kind: 'manual', key: 'M-0001' }, displayKey: 'M-0001' }));
+    expect(r.success).toBe(true);
   });
 
   it('rejects unknown state, flag, and priority values', () => {

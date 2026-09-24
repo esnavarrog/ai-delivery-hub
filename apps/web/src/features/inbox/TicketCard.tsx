@@ -21,11 +21,11 @@ export function TicketCard({ ticket, selected, onOpen }: { ticket: TicketSnapsho
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono">#{ticket.opWorkPackageId}</span>
+            <span className="font-mono">{ticket.displayKey}</span>
             {ticket.priority !== 'normal' ? <span className="capitalize">{ticket.priority}</span> : null}
           </div>
           <h3 className="truncate font-medium">
-            <button type="button" className="text-left focus-visible:outline-none" onClick={(e) => { e.stopPropagation(); onOpen(ticket); }} aria-label={`Open ticket #${ticket.opWorkPackageId} ${ticket.subject}`}>
+            <button type="button" className="text-left focus-visible:outline-none" onClick={(e) => { e.stopPropagation(); onOpen(ticket); }} aria-label={`Open ticket ${ticket.displayKey} ${ticket.subject}`}>
               {ticket.subject}
             </button>
           </h3>

@@ -2,7 +2,7 @@ import { wrapUntrusted, type TriageRunInput } from '@ai-delivery-hub/domain';
 
 export interface RecentTicket {
   id: string;
-  opWorkPackageId: number;
+  displayKey: string;
   subject: string;
   state: string;
   targetRepo?: string | undefined;
@@ -51,7 +51,7 @@ export function buildTriageUserPrompt(input: TriageRunnerInput): string {
   const parts = [input.untrustedContext];
   const recent = (input.recentTickets ?? []).slice(0, MAX_RECENT_TICKETS);
   if (recent.length > 0) {
-    const lines = recent.map((t) => `- ticketId=${t.id} wp=#${t.opWorkPackageId} state=${t.state} repo=${t.targetRepo ?? '-'} subject=${t.subject}`);
+    const lines = recent.map((t) => `- ticketId=${t.id} key=${t.displayKey} state=${t.state} repo=${t.targetRepo ?? '-'} subject=${t.subject}`);
     parts.push(wrapUntrusted('recent_tickets', lines.join('\n')));
   } else {
     parts.push('No recent tickets are available for duplicate detection; duplicateCandidates must be empty.');

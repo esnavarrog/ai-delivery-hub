@@ -11,12 +11,22 @@ type TicketRow = typeof tickets.$inferSelect;
 
 const iso = (d: Date | null): string | undefined => d?.toISOString();
 
+function rowToSource(row: TicketRow): TicketSnapshot['source'] {
+  if (row.sourceKind === 'manual') {
+    if (row.manualKey === null) throw new Error(`ticket ${row.id}: sourceKind is manual but manual_key is null`);
+    return { kind: 'manual', key: row.manualKey };
+  }
+  if (row.opWorkPackageId === null || row.opProjectId === null || row.opLockVersion === null) {
+    throw new Error(`ticket ${row.id}: sourceKind is openproject but an OP column is null`);
+  }
+  return { kind: 'openproject', workPackageId: row.opWorkPackageId, projectId: row.opProjectId, lockVersion: row.opLockVersion };
+}
+
 export function rowToSnapshot(row: TicketRow): TicketSnapshot {
   const snapshot: Record<string, unknown> = {
     id: row.id,
-    opWorkPackageId: row.opWorkPackageId,
-    opProjectId: row.opProjectId,
-    opLockVersion: row.opLockVersion,
+    source: rowToSource(row),
+    displayKey: row.displayKey,
     subject: row.subject,
     state: row.state,
     flags: row.flags,
@@ -47,9 +57,12 @@ export class PgTicketProjection implements TicketIndex, TicketQueries {
     const { snapshot, description } = projectTicket(events);
     const row: typeof tickets.$inferInsert = {
       id: snapshot.id,
-      opWorkPackageId: snapshot.opWorkPackageId,
-      opProjectId: snapshot.opProjectId,
-      opLockVersion: snapshot.opLockVersion,
+      sourceKind: snapshot.source.kind,
+      opWorkPackageId: snapshot.source.kind === 'openproject' ? snapshot.source.workPackageId : null,
+      opProjectId: snapshot.source.kind === 'openproject' ? snapshot.source.projectId : null,
+      opLockVersion: snapshot.source.kind === 'openproject' ? snapshot.source.lockVersion : null,
+      manualKey: snapshot.source.kind === 'manual' ? snapshot.source.key : null,
+      displayKey: snapshot.displayKey,
       subject: snapshot.subject,
       description,
       state: snapshot.state,

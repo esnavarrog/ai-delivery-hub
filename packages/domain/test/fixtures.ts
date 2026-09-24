@@ -29,9 +29,8 @@ export function validTriageResult(overrides: Partial<TriageResult> = {}): Triage
 export function baseSnapshot(overrides: Partial<TicketSnapshot> = {}): TicketSnapshot {
   return {
     id: 't-1',
-    opWorkPackageId: 1001,
-    opProjectId: 7,
-    opLockVersion: 3,
+    source: { kind: 'openproject', workPackageId: 1001, projectId: 7, lockVersion: 3 },
+    displayKey: 'OP-1001',
     subject: 'Login fails without cookie',
     state: 'received',
     flags: [],

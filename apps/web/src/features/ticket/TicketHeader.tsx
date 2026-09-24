@@ -8,19 +8,19 @@ import { RiskBadge } from '@/ui/risk-badge';
 import { StateChip } from '@/ui/state-chip';
 
 export function TicketHeader({ ticket, actions }: { ticket: TicketSnapshot; actions?: ReactNode }) {
-  const opUrl = workPackageUrl(ticket.opWorkPackageId);
+  const opUrl = ticket.source.kind === 'openproject' ? workPackageUrl(ticket.source.workPackageId) : undefined;
   return (
     <header className="flex flex-col gap-3 pb-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             {opUrl ? (
-              <a href={opUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono hover:text-foreground hover:underline" aria-label={`Open work package ${ticket.opWorkPackageId} in OpenProject`}>
-                #{ticket.opWorkPackageId}
+              <a href={opUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono hover:text-foreground hover:underline" aria-label={`Open work package ${ticket.displayKey} in OpenProject`}>
+                {ticket.displayKey}
                 <ExternalLink className="size-3.5" aria-hidden="true" />
               </a>
             ) : (
-              <span className="font-mono">#{ticket.opWorkPackageId}</span>
+              <span className="font-mono">{ticket.displayKey}</span>
             )}
             <span aria-hidden="true">·</span>
             <span className="capitalize">{ticket.priority} priority</span>

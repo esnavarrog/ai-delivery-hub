@@ -53,13 +53,17 @@ export function triageFollowUp(snapshot: TicketSnapshot): 'planning_started' | '
 /** The ticket facts the model may see, as one untrusted block. Never placed in the system prompt. */
 export function ticketUntrustedContext(loaded: LoadedTicket): string {
   const received = loaded.events[0]?.payload as { status?: string; type?: string } | undefined;
+  const { source } = loaded.snapshot;
+  const sourceLines =
+    source.kind === 'openproject'
+      ? [`OpenProject project id: ${source.projectId}`, `Work package: #${source.workPackageId}`]
+      : [`Source: manual ticket ${source.key}`];
   const lines = [
     `Subject: ${loaded.snapshot.subject}`,
     `Type: ${received?.type ?? 'unknown'}`,
     `OpenProject status: ${received?.status ?? 'unknown'}`,
     `Priority: ${loaded.snapshot.priority}`,
-    `OpenProject project id: ${loaded.snapshot.opProjectId}`,
-    `Work package: #${loaded.snapshot.opWorkPackageId}`,
+    ...sourceLines,
     '',
     'Description:',
     loaded.description,
@@ -149,7 +153,7 @@ export class RunTriage {
     const { deps } = this;
     try {
       const recent = (await deps.tickets.list({})).filter((t) => t.id !== loaded.snapshot.id).slice(0, MAX_RECENT_TICKETS);
-      const recentTickets: RecentTicket[] = recent.map((t) => ({ id: t.id, opWorkPackageId: t.opWorkPackageId, subject: t.subject, state: t.state, targetRepo: t.targetRepo }));
+      const recentTickets: RecentTicket[] = recent.map((t) => ({ id: t.id, displayKey: t.displayKey, subject: t.subject, state: t.state, targetRepo: t.targetRepo }));
       return await deps.runner.runTriage({
         runId,
         ticket: loaded.snapshot,

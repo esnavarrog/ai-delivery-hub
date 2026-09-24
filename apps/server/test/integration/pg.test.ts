@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb, type DbHandle } from '../../src/adapters/db/client.js';
 import { PgEventStore } from '../../src/adapters/db/event-store.js';
+import { PgManualKeySequence } from '../../src/adapters/db/manual-key-sequence.js';
 import { runMigrations } from '../../src/adapters/db/migrations.js';
 import { PgPlanCommentsRepository, PgPlanVersionsRepository, PgRunsRepository } from '../../src/adapters/db/plan-repositories.js';
 import { PgTicketProjection, ProjectingEventStore } from '../../src/adapters/db/ticket-projection.js';
@@ -31,9 +32,7 @@ function event(ticketId: string, seq: number, type: TicketEvent['type'], payload
 }
 
 const receivedPayload = (opWorkPackageId: number, subject = 'Subject') => ({
-  opWorkPackageId,
-  opProjectId: 15,
-  opLockVersion: 1,
+  source: { kind: 'openproject' as const, workPackageId: opWorkPackageId, projectId: 15, lockVersion: 1 },
   subject,
   description: 'desc',
   status: 'New',
@@ -57,7 +56,7 @@ describe.skipIf(!url)('Postgres adapters', () => {
   });
 
   beforeEach(async () => {
-    await handle.db.execute(sql`TRUNCATE tickets, ticket_events, ingest_watermarks, plan_versions, plan_comments, runs`);
+    await handle.db.execute(sql`TRUNCATE tickets, ticket_events, ingest_watermarks, plan_versions, plan_comments, runs, manual_ticket_counter`);
   });
 
   describe('PgEventStore', () => {
@@ -128,13 +127,13 @@ describe.skipIf(!url)('Postgres adapters', () => {
       expect(await projection.findTicketIdByWorkPackage(1)).toBeUndefined();
       const listed = await projection.list({ state: 'received' });
       expect(listed.map((t) => t.id)).toEqual([ticketId]);
-      expect(listed[0]).toMatchObject({ subject: '[AI] Subject', priority: 'high', opLockVersion: 1, flags: [] });
+      expect(listed[0]).toMatchObject({ subject: '[AI] Subject', priority: 'high', displayKey: 'OP-4711', source: { lockVersion: 1 }, flags: [] });
       expect(await projection.list({ state: 'planning' })).toEqual([]);
 
       const updated = await ingest.execute({ ...wp, lockVersion: 2, subject: '[AI] Renamed' });
       expect(updated.kind).toBe('updated');
       const found = await projection.get(ticketId);
-      expect(found?.snapshot).toMatchObject({ subject: '[AI] Renamed', opLockVersion: 2, state: 'received' });
+      expect(found?.snapshot).toMatchObject({ subject: '[AI] Renamed', source: { lockVersion: 2 }, state: 'received' });
       expect(found?.events.map((e) => e.type)).toEqual(['ticket_received', 'ticket_updated_from_op']);
       expect((await projection.eventsAfter(ticketId, 1)).map((e) => e.seq)).toEqual([2]);
       expect(hookCalls).toEqual(['ticket_received:received', 'ticket_updated_from_op:received']);
@@ -151,6 +150,17 @@ describe.skipIf(!url)('Postgres adapters', () => {
       await watermarks.set(15, '2026-09-14T12:00:00.000Z');
       expect(await watermarks.get(15)).toBe('2026-09-14T12:00:00.000Z');
       expect(await watermarks.get(6)).toBeUndefined();
+    });
+  });
+
+  describe('PgManualKeySequence', () => {
+    it('hands out incrementing M-000N keys, including across concurrent callers', async () => {
+      const keys = new PgManualKeySequence(handle.db);
+      expect(await keys.next()).toBe('M-0001');
+      expect(await keys.next()).toBe('M-0002');
+      const concurrent = await Promise.all([keys.next(), keys.next(), keys.next()]);
+      expect(new Set(concurrent).size).toBe(3);
+      expect([...concurrent].sort()).toEqual(['M-0003', 'M-0004', 'M-0005']);
     });
   });
 

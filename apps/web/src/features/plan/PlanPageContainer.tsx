@@ -95,7 +95,7 @@ export function PlanPageContainer({ ticketId, versionId, onVersionChange }: { ti
         <div className="flex min-w-0 flex-col gap-1">
           <Link to="/tickets/$id" params={{ id: ticketId }} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" aria-hidden="true" />
-            #{detail.ticket.opWorkPackageId} {detail.ticket.subject}
+            {detail.ticket.displayKey} {detail.ticket.subject}
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">
             Plan v{selected.version} <span className="text-base font-normal text-muted-foreground">· {selected.status}</span>

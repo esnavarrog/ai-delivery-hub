@@ -115,7 +115,12 @@ function fakeQuery(scripts: Array<SDKMessage[] | 'hang'>) {
 }
 
 const policies = {
-  docs: { pillars: '# Pillars\nHumans decide.', conventions: '# Conventions\nEnglish.', security: '# Security\nNever log PII.' },
+  docs: {
+    pillars: '# Pillars\nHumans decide.',
+    conventions: '# Conventions\nEnglish.',
+    security: '# Security\nNever log PII.',
+    steps: { planning: '# Step: Planning\nWrite the plan.' },
+  },
   repos: { 'backend-parkingapp': { stack: 'rails', defaultBranch: 'develop', testCommand: 'bundle exec rspec' } },
 };
 
@@ -203,6 +208,7 @@ describe('AgentSdkPlanningRunner', () => {
     expect(system).toEqual({ type: 'custom', prompt: expect.any(String) });
     const systemText = (system as { prompt: string }).prompt;
     expect(systemText).toContain('Never log PII');
+    expect(systemText).toContain('# Step: Planning');
     expect(systemText).toMatch(/ONLY a final JSON object/i);
     expect(systemText).toContain('"acceptanceCriteria"');
     expect(systemText).toMatch(/read-only/i);

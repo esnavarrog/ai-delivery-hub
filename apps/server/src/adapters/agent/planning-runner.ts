@@ -24,7 +24,7 @@ export interface PlanningRunnerInput extends PlanningRunInput {
 }
 
 export interface PlanningPolicies {
-  docs: { pillars: string; conventions: string; security: string };
+  docs: { pillars: string; conventions: string; security: string; steps: { planning: string } };
   repos: Record<string, { stack: string; defaultBranch: string; testCommand: string }>;
 }
 
@@ -250,8 +250,10 @@ export class AgentSdkPlanningRunner implements Pick<AgentRunnerPort, 'runPlannin
       `- test command (for the plan's tests section; you cannot run it): ${repo?.testCommand ?? 'unknown'}`,
       `- HEAD commit (use as baseCommitSha): ${input.baseCommitSha}`,
     ];
-    const { pillars, conventions, security } = this.options.policies.docs;
-    return [ROLE_INSTRUCTIONS, '# Target repository', repoLines.join('\n'), '# Company policies', pillars, conventions, security].join('\n\n');
+    const { pillars, conventions, security, steps } = this.options.policies.docs;
+    return [ROLE_INSTRUCTIONS, '# Target repository', repoLines.join('\n'), '# Step policy', steps.planning, '# Company policies', pillars, conventions, security].join(
+      '\n\n',
+    );
   }
 
   private buildUserPrompt(input: PlanningRunnerInput): string {

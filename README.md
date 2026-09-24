@@ -8,7 +8,7 @@ Phase 1 covers intake, triage and plan review; implementation and QA phases come
 
 - `packages/domain` — pure domain: ticket state machine, events, triage/plan schemas, ports (zero I/O).
 - `packages/contracts` — HTTP API contracts (zod request/response schemas + inferred types) shared by server and web.
-- `packages/policies` — `repos.yaml`, `risk-paths.yaml` and the pillars/conventions/security docs injected into every AI run.
+- `packages/policies` — `repos.yaml`, `risk-paths.yaml`, the pillars/conventions/security docs injected into every AI run, and `steps/*.md` — one policy doc per pipeline step (see "Step policies" under "AI runs").
 - `apps/server` — orchestration service: OpenProject ingest, event store, pg-boss jobs, AI runs, HTTP/SSE API.
 - `apps/web` — review UI (Vite + React): inbox, board, ticket timeline with action panel, plan review, runs.
 - `infra` — `docker-compose.yml` with Postgres 16 (`hub` + `hub_test` databases).
@@ -57,6 +57,10 @@ Two separate runs, both configured in `packages/policies/repos.yaml`. Which cred
 In `subscription` mode, both agent-SDK-backed runners strip `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` from the Claude Code subprocess env (`agentSubprocessEnv(..., { stripApiKeyEnv: true })` in `planning-runner.ts`, reused by the triage runner) so the CLI falls back to its logged-in profile instead of accidentally billing the API key. **Subscription mode is for personal/dev use only; production and multi-user deployments must run with `AI_CREDENTIALS=api-key`** (Anthropic's terms).
 
 Prompt assembly follows the security rules: system prompt = role instructions + policies; every external text (ticket subject/description, recent tickets for duplicate detection, plan comments) goes into the user turn wrapped by `wrapUntrusted(...)` and is never placed in the system prompt.
+
+### Step policies
+
+`packages/policies/steps/{triage,planning,implement,review,qa,release}.md` document each hub pipeline step: purpose, inputs, an output contract stated so it can be checked mechanically, rules and anti-goals. `loadPolicies` reads them into `policies.docs.steps` (`PoliciesError` if any is missing). Only the `triage` and `planning` docs are injected into a runner's system prompt today (both triage runners and `AgentSdkPlanningRunner`, right after the role instructions); `implement`, `review`, `qa` and `release` are loaded and validated but have no runner yet — they document the contract a later phase implements against. These docs are adapted from [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)'s SDD/review skills (MIT-licensed) for this headless pipeline; see `packages/policies/steps/NOTICE.md` for the attribution.
 
 ### Requirements on the server host
 

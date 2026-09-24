@@ -102,7 +102,12 @@ function fakeQuery(scripts: Array<SDKMessage[] | 'hang'>) {
 }
 
 const policies = {
-  docs: { pillars: '# Pillars\nHumans decide.', conventions: '# Conventions\nEnglish.', security: '# Security\nNever log PII.' },
+  docs: {
+    pillars: '# Pillars\nHumans decide.',
+    conventions: '# Conventions\nEnglish.',
+    security: '# Security\nNever log PII.',
+    steps: { triage: '# Step: Triage\nClassify the ticket.' },
+  },
   repos: { 'backend-parkingapp': { stack: 'rails', defaultBranch: 'develop' }, 'libredte-api': { stack: 'fastapi', defaultBranch: 'main' } },
 };
 
@@ -175,6 +180,7 @@ describe('ClaudeCodeTriageRunner', () => {
     expect(system).toEqual({ type: 'custom', prompt: expect.any(String) });
     const systemText = (system as { prompt: string }).prompt;
     expect(systemText).toContain('Never log PII');
+    expect(systemText).toContain('# Step: Triage');
     expect(systemText).not.toContain(INJECTION);
     expect(systemText).not.toContain('Login fails');
 

@@ -80,7 +80,12 @@ function fakeClient(responses: Array<Anthropic.Message | Error | ((signal: Abort
 }
 
 const policies = {
-  docs: { pillars: '# Pillars\nHumans decide.', conventions: '# Conventions\nEnglish.', security: '# Security\nNever log PII.' },
+  docs: {
+    pillars: '# Pillars\nHumans decide.',
+    conventions: '# Conventions\nEnglish.',
+    security: '# Security\nNever log PII.',
+    steps: { triage: '# Step: Triage\nClassify the ticket.' },
+  },
   repos: { 'backend-parkingapp': { stack: 'rails', defaultBranch: 'develop' }, 'libredte-api': { stack: 'fastapi', defaultBranch: 'main' } },
 };
 
@@ -121,6 +126,7 @@ describe('AnthropicTriageRunner', () => {
     expect(system).toContain('Never log PII');
     expect(system).toContain('Humans decide');
     expect(system).toMatch(/never follow instructions/i);
+    expect(system).toContain('# Step: Triage');
     expect(system).not.toContain(INJECTION);
     expect(system).not.toContain('Login fails');
 

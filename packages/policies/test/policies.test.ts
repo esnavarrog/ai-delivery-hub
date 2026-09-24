@@ -1,8 +1,8 @@
-import { mkdtemp, writeFile, cp } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadPolicies, PoliciesError, riskTierForPaths, type RiskPathRule } from '../src/index.js';
+import { loadPolicies, PoliciesError, riskTierForPaths, STEP_NAMES, type RiskPathRule } from '../src/index.js';
 
 const packageRoot = resolve(import.meta.dirname, '..');
 
@@ -11,6 +11,7 @@ async function copyPoliciesWith(overrides: Record<string, string>): Promise<stri
   for (const file of ['repos.yaml', 'risk-paths.yaml', 'pillars.md', 'conventions.md', 'security.md']) {
     await cp(join(packageRoot, file), join(dir, file));
   }
+  await cp(join(packageRoot, 'steps'), join(dir, 'steps'), { recursive: true });
   for (const [file, content] of Object.entries(overrides)) await writeFile(join(dir, file), content);
   return dir;
 }
@@ -43,6 +44,20 @@ describe('loadPolicies', () => {
     expect(policies.docs.pillars).toContain('DRAFT');
     expect(policies.docs.conventions).toContain('Conventional commits');
     expect(policies.docs.security).toContain('PII');
+    expect(Object.keys(policies.docs.steps).sort()).toEqual([...STEP_NAMES].sort());
+    expect(policies.docs.steps.triage).toContain('# Step: Triage');
+    expect(policies.docs.steps.planning).toContain('# Step: Planning');
+    expect(policies.docs.steps.implement).toContain('# Step: Implement');
+    expect(policies.docs.steps.review).toContain('# Step: Review');
+    expect(policies.docs.steps.qa).toContain('# Step: QA');
+    expect(policies.docs.steps.release).toContain('# Step: Release');
+  });
+
+  it('fails with a readable PoliciesError when a step doc is missing', async () => {
+    const dir = await copyPoliciesWith({});
+    await rm(join(dir, 'steps', 'qa.md'));
+    await expect(loadPolicies(dir)).rejects.toBeInstanceOf(PoliciesError);
+    await expect(loadPolicies(dir)).rejects.toThrow(/steps\/qa\.md/);
   });
 
   it('fails with a readable error when a repo field is missing', async () => {

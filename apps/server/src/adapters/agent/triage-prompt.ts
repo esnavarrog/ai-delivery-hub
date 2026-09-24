@@ -14,7 +14,7 @@ export interface TriageRunnerInput extends TriageRunInput {
 }
 
 export interface TriagePolicies {
-  docs: { pillars: string; conventions: string; security: string };
+  docs: { pillars: string; conventions: string; security: string; steps: { triage: string } };
   repos: Record<string, { stack: string; defaultBranch: string }>;
 }
 
@@ -40,8 +40,10 @@ export function buildTriageSystemPrompt(policies: TriagePolicies, allowedRepos: 
     const repo = policies.repos[name];
     return repo ? `- ${name} (stack: ${repo.stack}, default branch: ${repo.defaultBranch})` : `- ${name}`;
   });
-  const { pillars, conventions, security } = policies.docs;
-  return [TRIAGE_ROLE_INSTRUCTIONS, '# Allowed repositories', repoLines.join('\n'), '# Company policies', pillars, conventions, security].join('\n\n');
+  const { pillars, conventions, security, steps } = policies.docs;
+  return [TRIAGE_ROLE_INSTRUCTIONS, '# Allowed repositories', repoLines.join('\n'), '# Step policy', steps.triage, '# Company policies', pillars, conventions, security].join(
+    '\n\n',
+  );
 }
 
 /** User prompt: the already-wrapped ticket plus recent tickets for duplicate detection, also wrapped as untrusted. */

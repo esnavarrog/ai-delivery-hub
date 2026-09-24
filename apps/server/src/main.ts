@@ -14,7 +14,7 @@ import { PgTicketProjection, ProjectingEventStore } from './adapters/db/ticket-p
 import { PgWatermarkStore } from './adapters/db/watermarks.js';
 import { OpenProjectClient } from './adapters/openproject/client.js';
 import { GitWorktreeAdapter } from './adapters/repo/git-worktree.js';
-import { loadConfig } from './config.js';
+import { loadConfig, shouldWarnOnSubscriptionFallback } from './config.js';
 import { createApp } from './http/app.js';
 import { BossOutboxQueue, BossPlanningScheduler, BossTriageScheduler, createBoss, registerWorkers, type Logger } from './jobs/boss.js';
 import { loadLocalEnv } from './local-env.js';
@@ -39,6 +39,9 @@ async function main(): Promise<void> {
   loadLocalEnv();
   const config = loadConfig();
   log.info('ai credentials mode resolved', { mode: config.aiCredentialsMode });
+  if (shouldWarnOnSubscriptionFallback(config)) {
+    log.warn('AI_CREDENTIALS=auto fell back to the personal Claude Code subscription login (no ANTHROPIC_API_KEY set) — fine for local/dev, never use this outside production for multi-user deployments');
+  }
   const policies = await loadPolicies(config.POLICIES_DIR);
 
   const dbHandle = createDb(config.DATABASE_URL);

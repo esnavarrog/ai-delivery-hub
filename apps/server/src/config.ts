@@ -53,6 +53,15 @@ export function resolveAiCredentialsMode(mode: EnvConfig['AI_CREDENTIALS'], apiK
   return apiKey && apiKey.length > 0 ? 'api-key' : 'subscription';
 }
 
+/**
+ * Pure: true when the caller should warn that the developer's personal Claude Code login is in
+ * use — only for the implicit `auto` fallback, and never in production (production refuses to
+ * start in subscription mode at all, so there is nothing to warn about there).
+ */
+export function shouldWarnOnSubscriptionFallback(config: Pick<Config, 'NODE_ENV' | 'AI_CREDENTIALS' | 'aiCredentialsMode'>): boolean {
+  return config.NODE_ENV !== 'production' && config.AI_CREDENTIALS === 'auto' && config.aiCredentialsMode === 'subscription';
+}
+
 /** Validates the process environment; secrets never leave this object as strings in logs. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = Env.safeParse(env);
@@ -60,6 +69,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const aiCredentialsMode = resolveAiCredentialsMode(parsed.data.AI_CREDENTIALS, parsed.data.ANTHROPIC_API_KEY);
   if (aiCredentialsMode === 'api-key' && !parsed.data.ANTHROPIC_API_KEY) {
     throw new ConfigError('AI_CREDENTIALS=api-key requires a non-empty ANTHROPIC_API_KEY to be set');
+  }
+  if (parsed.data.NODE_ENV === 'production' && aiCredentialsMode !== 'api-key') {
+    throw new ConfigError(
+      `AI_CREDENTIALS must resolve to api-key when NODE_ENV=production (got AI_CREDENTIALS=${parsed.data.AI_CREDENTIALS}, which resolved to ${aiCredentialsMode}); ` +
+        'set ANTHROPIC_API_KEY and AI_CREDENTIALS=api-key (or leave AI_CREDENTIALS=auto with the key set) — the Claude Code subscription login is for personal/dev use only',
+    );
   }
   return { ...parsed.data, aiCredentialsMode };
 }

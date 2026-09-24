@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConfigError, loadConfig, resolveAiCredentialsMode } from '../../src/config.js';
+import { ConfigError, loadConfig, resolveAiCredentialsMode, shouldWarnOnSubscriptionFallback } from '../../src/config.js';
 
 const valid = {
   DATABASE_URL: 'postgres://hub:hub@localhost:5433/hub',
@@ -80,5 +80,39 @@ describe('loadConfig: AI_CREDENTIALS', () => {
 
   it('rejects an unknown AI_CREDENTIALS value', () => {
     expect(() => loadConfig({ ...valid, AI_CREDENTIALS: 'yolo' })).toThrow(ConfigError);
+  });
+});
+
+describe('loadConfig: production credentials guard', () => {
+  it('fails when NODE_ENV=production and auto resolves to subscription (no key)', () => {
+    expect(() => loadConfig({ ...valid, NODE_ENV: 'production', ANTHROPIC_API_KEY: '' })).toThrow(ConfigError);
+    expect(() => loadConfig({ ...valid, NODE_ENV: 'production', ANTHROPIC_API_KEY: '' })).toThrow(/production/i);
+  });
+
+  it('fails when NODE_ENV=production and AI_CREDENTIALS=subscription is explicit, even with a key set', () => {
+    expect(() => loadConfig({ ...valid, NODE_ENV: 'production', AI_CREDENTIALS: 'subscription', ANTHROPIC_API_KEY: 'sk-test' })).toThrow(ConfigError);
+  });
+
+  it('succeeds when NODE_ENV=production and auto resolves to api-key', () => {
+    const config = loadConfig({ ...valid, NODE_ENV: 'production', ANTHROPIC_API_KEY: 'sk-test' });
+    expect(config.aiCredentialsMode).toBe('api-key');
+  });
+
+  it('succeeds when NODE_ENV=production and AI_CREDENTIALS=api-key with a key', () => {
+    const config = loadConfig({ ...valid, NODE_ENV: 'production', AI_CREDENTIALS: 'api-key', ANTHROPIC_API_KEY: 'sk-test' });
+    expect(config.aiCredentialsMode).toBe('api-key');
+  });
+});
+
+describe('shouldWarnOnSubscriptionFallback', () => {
+  it('is true outside production when auto resolved to subscription', () => {
+    expect(shouldWarnOnSubscriptionFallback({ NODE_ENV: 'development', AI_CREDENTIALS: 'auto', aiCredentialsMode: 'subscription' })).toBe(true);
+    expect(shouldWarnOnSubscriptionFallback({ NODE_ENV: 'test', AI_CREDENTIALS: 'auto', aiCredentialsMode: 'subscription' })).toBe(true);
+  });
+
+  it('is false when the mode was chosen explicitly, resolved to api-key, or NODE_ENV is production', () => {
+    expect(shouldWarnOnSubscriptionFallback({ NODE_ENV: 'development', AI_CREDENTIALS: 'subscription', aiCredentialsMode: 'subscription' })).toBe(false);
+    expect(shouldWarnOnSubscriptionFallback({ NODE_ENV: 'development', AI_CREDENTIALS: 'auto', aiCredentialsMode: 'api-key' })).toBe(false);
+    expect(shouldWarnOnSubscriptionFallback({ NODE_ENV: 'production', AI_CREDENTIALS: 'auto', aiCredentialsMode: 'subscription' })).toBe(false);
   });
 });

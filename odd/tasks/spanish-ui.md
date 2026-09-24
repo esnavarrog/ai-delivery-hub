@@ -106,6 +106,12 @@ Mode: strict (global config). Runner: `pnpm -r test`, `pnpm typecheck`, `pnpm bu
 - A triage/plan generated with the smoke script returns Spanish prose with unchanged JSON keys.
 - Existing Obsidian mirror notes are still updated correctly.
 
+## Review record
+- Full range 26a3bca..3223713 refused at START with `lens_context_budget_exceeded` (no authority created); reviewed as three slices instead.
+- Slice A (T1, 26a3bca..b58f6d9): medium, consent granted, 1 lens, approved + acknowledged. Follow-ups: `failureMessage` still humanizes run kind in English (`action-resolver.ts:84-86`); label lookups use `in` on plain objects (prototype keys match).
+- Slice B (T2, b58f6d9..56defe9): high, consent granted, 4 lenses, approved + acknowledged. Follow-up: `riskSignals` are short tags with English examples but the language instruction asks to translate them — decide whether tags stay English.
+- Slice C (T3, 56defe9..3223713): medium, consent granted, 1 lens, approved + acknowledged, no warnings.
+
 ## Progress / Evidence
 - Branch `feat/spanish-ui` created from `feat/op-readonly-obsidian` (26a3bca).
 

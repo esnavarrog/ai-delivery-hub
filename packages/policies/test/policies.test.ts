@@ -30,7 +30,7 @@ describe('loadPolicies', () => {
     expect(policies.models.triage).toBe('claude-opus-5');
     expect(policies.models.planning.high).toBe('claude-opus-5');
     expect(policies.models.effort).toEqual({ triage: 'low', planning: 'high' });
-    expect(policies.budgets.triage).toEqual({ maxTokens: 40_000, maxDurationMs: 180_000 });
+    expect(policies.budgets.triage).toEqual({ maxTokens: 80_000, maxDurationMs: 180_000 });
     expect(policies.budgets.planning).toEqual({ maxTokens: 150_000, maxDurationMs: 600_000, maxTurns: 40 });
     expect(policies.openproject.projectIds).toEqual([15, 6]);
     expect(policies.openproject.trigger).toEqual({

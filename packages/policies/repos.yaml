@@ -28,7 +28,7 @@ models:
 # Per-run ceilings; exceeding either one raises `budget_exhausted`.
 budgets:
   triage:
-    maxTokens: 40000
+    maxTokens: 80000
     maxDurationMs: 180000
   planning:
     maxTokens: 150000

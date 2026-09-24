@@ -10,6 +10,7 @@ import { Button } from '@/ui/button';
 import { EmptyState } from '@/ui/empty-state';
 import { Skeleton } from '@/ui/skeleton';
 import { ActionPanel } from './ActionPanel';
+import { AnswerQuestionsDialog, latestQuestions } from './AnswerQuestionsDialog';
 import { ApproveDialog, ConfirmTriageDialog, ReasonDialog, RequestChangesDialog } from './dialogs';
 import { RiskBanner } from './RiskBanner';
 import { TicketHeader } from './TicketHeader';
@@ -75,6 +76,7 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
 
   const { ticket } = detail;
   const planHref = (ref: string) => `/tickets/${encodeURIComponent(ticketId)}/plan?version=${encodeURIComponent(ref)}`;
+  const pendingQuestions = latestQuestions(detail.events);
 
   return (
     <div className="flex flex-col gap-4">
@@ -182,6 +184,14 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         confirmLabel={es.dialogs.stop.confirm}
         destructive
         onConfirm={(body) => send({ kind: 'flag', body: { flag: 'paused', set: true, ...(body.reason ? { reason: body.reason } : {}) } })}
+      />
+      <AnswerQuestionsDialog
+        key={`aq-${dialog}`}
+        open={dialog === 'answer_questions'}
+        busy={busy}
+        onOpenChange={(o) => setDialog(o ? 'answer_questions' : null)}
+        questions={pendingQuestions?.questions ?? []}
+        onConfirm={(answers) => send({ kind: 'answer_questions', body: { round: pendingQuestions?.round ?? ticket.clarificationRound ?? 1, answers } })}
       />
     </div>
   );

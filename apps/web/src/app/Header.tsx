@@ -11,6 +11,8 @@ import { DEV_USERS, setCurrentLogin, useCurrentLogin } from './current-user';
 import { useMe } from './queries';
 
 const NAV = [
+  { to: '/solicitudes/nueva', label: es.nav.newRequest },
+  { to: '/solicitudes', label: es.nav.myRequests },
   { to: '/inbox', label: es.nav.inbox },
   { to: '/board', label: es.nav.board },
   { to: '/runs', label: es.nav.runs },

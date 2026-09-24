@@ -1,6 +1,6 @@
 import type { TicketDetailResponse } from '@ai-delivery-hub/contracts';
 import type { Role } from '@ai-delivery-hub/domain';
-import { AlertTriangle, Bot, CheckCircle2, Clock, Eye, Lock } from 'lucide-react';
+import { AlertTriangle, Bot, CheckCircle2, Clock, Eye, HelpCircle, Lock } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { es } from '@/i18n/es';
 import type { ActionPlan, InfoKind, ResolvedAction } from '@/lib/action-resolver';
@@ -32,6 +32,7 @@ const ICON: Record<InfoKind, typeof Bot> = {
   approved: CheckCircle2,
   closed: Lock,
   read_only: Eye,
+  needs_answer: HelpCircle,
   later_phase: Clock,
 };
 

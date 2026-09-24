@@ -1,4 +1,4 @@
-import type { ActorKind, Role, RiskTier, RunFailureReason, TicketCategory, TicketFlag, TicketPriority, TicketState } from '@ai-delivery-hub/domain';
+import type { ActorKind, Department, Frequency, Role, RiskTier, RunFailureReason, TicketCategory, TicketFlag, TicketPriority, TicketState } from '@ai-delivery-hub/domain';
 import type { RunKind, RunStatus } from '@ai-delivery-hub/contracts';
 
 /** Spanish labels for every domain enum rendered in the UI. Keys stay the English enum values (contracts unchanged). */
@@ -87,4 +87,18 @@ export const runKindLabels: Record<RunKind, string> = {
 export const sourceKindLabels: Record<'openproject' | 'manual', string> = {
   openproject: 'OpenProject',
   manual: 'Manual',
+};
+
+export const departmentLabels: Record<Department, string> = {
+  support: 'Soporte',
+  operations: 'Operaciones',
+  finance: 'Finanzas',
+  other: 'Otra',
+};
+
+export const frequencyLabels: Record<Frequency, string> = {
+  daily: 'Diaria',
+  weekly: 'Semanal',
+  monthly: 'Mensual',
+  occasional: 'Ocasional',
 };

@@ -175,6 +175,7 @@ describe('resolveActions', () => {
       ticket_rejected: 'reject',
       ticket_marked_duplicate: 'duplicate',
       ticket_marked_already_implemented: 'already_implemented',
+      requester_answers_submitted: 'answer_questions',
     };
     for (const edge of humanEdges) {
       const action = eventToAction[edge.event];
@@ -182,6 +183,27 @@ describe('resolveActions', () => {
       const offered = ids(resolve(edge.from, 'admin', { ownerUserId: undefined }));
       expect(offered, `${edge.from} -> ${edge.event}`).toContain(action);
     }
+  });
+
+  it('awaiting_requester: lead/admin get answer_questions; a plain dev without ownership only watches', () => {
+    for (const role of ['lead', 'admin'] as const) {
+      const r = resolve('awaiting_requester', role, { pendingQuestionCount: 2 });
+      expect(r.primary?.id).toBe('answer_questions');
+      expect(r.info.kind).toBe('needs_answer');
+    }
+    const dev = resolve('awaiting_requester', 'dev', { ownerUserId: undefined });
+    expect(dev.primary).toBeUndefined();
+    expect(dev.info.kind).toBe('waiting');
+  });
+
+  it('awaiting_requester: the owning requester gets answer_questions; another requester only watches', () => {
+    const owner = resolve('awaiting_requester', 'requester', { requesterUserId: ME, pendingQuestionCount: 1 });
+    expect(owner.primary?.id).toBe('answer_questions');
+    expect(owner.info.kind).toBe('needs_answer');
+
+    const other = resolve('awaiting_requester', 'requester', { requesterUserId: OTHER });
+    expect(other.primary).toBeUndefined();
+    expect(other.info.kind).toBe('read_only');
   });
 
   it('every action carries an accessible label', () => {

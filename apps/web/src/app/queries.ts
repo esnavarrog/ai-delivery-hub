@@ -4,6 +4,8 @@ import type {
   CommandResponse,
   CommentResponse,
   ConfirmTriageBody,
+  CreateTicketBody,
+  CreateTicketResponse,
   DecisionBody,
   DuplicateBody,
   EnqueuedResponse,
@@ -12,6 +14,7 @@ import type {
   MeResponse,
   RequestChangesBody,
   RunsResponse,
+  SubmitAnswersBody,
   TicketDetailResponse,
   TicketListResponse,
   TicketPlanResponse,
@@ -75,6 +78,19 @@ export function useRuns(ticketId?: string) {
   });
 }
 
+/** Creates a manual feature-request ticket (`POST /api/tickets`); invalidates the requester's ticket list. */
+export function useCreateTicket() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateTicketBody) => api.post<CreateTicketResponse>('/api/tickets', body),
+    onSuccess: async () => {
+      toast.success(es.requestForm.submitted);
+      await queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+    onError: (err) => toast.error(describeError(err)),
+  });
+}
+
 /** One-line summary of a fetch, for the toast. */
 export function describeFetchSummary(summary: FetchResponse): string {
   const parts = [`OpenProject: ${summary.openproject.fetched} obtenidos, ${summary.openproject.created} nuevos, ${summary.openproject.updated} actualizados.`];
@@ -113,7 +129,8 @@ export type TicketCommand =
   | { kind: 'retriage' }
   | { kind: 'replan'; body: DecisionBody }
   | { kind: 'comment'; body: AddCommentBody }
-  | { kind: 'resolve_comment'; commentId: string };
+  | { kind: 'resolve_comment'; commentId: string }
+  | { kind: 'answer_questions'; body: SubmitAnswersBody };
 
 const ROUTES: Record<TicketCommand['kind'], string> = {
   claim: 'claim',
@@ -129,6 +146,7 @@ const ROUTES: Record<TicketCommand['kind'], string> = {
   replan: 'replan',
   comment: 'comments',
   resolve_comment: 'comments',
+  answer_questions: 'answers',
 };
 
 export const SUCCESS_MESSAGES: Record<TicketCommand['kind'], string> = es.toasts;

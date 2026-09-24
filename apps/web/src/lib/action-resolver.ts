@@ -18,7 +18,8 @@ export type ActionId =
   | 'stop'
   | 'pause'
   | 'resume'
-  | 'add_comment';
+  | 'add_comment'
+  | 'answer_questions';
 
 export interface ResolvedAction {
   id: ActionId;
@@ -38,6 +39,7 @@ export type InfoKind =
   | 'approved'
   | 'closed'
   | 'read_only'
+  | 'needs_answer'
   | 'later_phase';
 
 export interface ActionInfo {
@@ -116,8 +118,17 @@ export function resolveActions({ ticket: t, role, login, latestRun, now }: Resol
     return plan({ kind: 'closed', title: es.actionInfo.closedTitle(ticketStateLabels[t.state]), message: es.actionInfo.closedMessage });
   }
 
-  // Requester and QA never drive the Phase 1 flow.
+  // Requester and QA never drive the Phase 1 flow, except a requester answering their own
+  // clarifying questions in `awaiting_requester`.
   if (!reviewer) {
+    const isRequesterOwner = role === 'requester' && t.requesterUserId !== undefined && t.requesterUserId === login;
+    if (t.state === 'awaiting_requester' && isRequesterOwner) {
+      return plan({
+        kind: 'needs_answer',
+        title: es.actionInfo.needsAnswerTitle,
+        message: es.actionInfo.needsAnswerMessage(t.pendingQuestionCount ?? 0),
+      }, { primary: action('answer_questions', es.actions.answerQuestions) });
+    }
     const message = role === 'requester' ? es.actionInfo.readOnlyRequester : es.actionInfo.readOnlyQa;
     return plan(
       { kind: 'read_only', title: es.actionInfo.readOnlyTitle, message },
@@ -162,6 +173,16 @@ export function resolveActions({ ticket: t, role, login, latestRun, now }: Resol
       return plan(
         { kind: 'triage_suggestion', title: es.actionInfo.triageSuggestionTitle, message: es.actionInfo.triageSuggestionMessage },
         { primary: action('confirm_triage', es.actions.confirmTriage), secondary: action('reject', es.actions.reject, { destructive: true }), more: CLOSE_DECISIONS, tertiary },
+      );
+    }
+
+    case 'awaiting_requester': {
+      if (!ownerEquivalent) {
+        return plan({ kind: 'waiting', title: es.actionInfo.waitingAnswerTitle, message: es.actionInfo.waitingAnswerMessage }, { tertiary });
+      }
+      return plan(
+        { kind: 'needs_answer', title: es.actionInfo.needsAnswerTitle, message: es.actionInfo.needsAnswerMessage(t.pendingQuestionCount ?? 0) },
+        { primary: action('answer_questions', es.actions.answerQuestions), tertiary },
       );
     }
 

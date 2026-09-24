@@ -27,7 +27,9 @@ Today tickets only enter via OpenProject or the Obsidian vault import. There is 
   - RED: 23 failed / 151 passed (missing new surface) → GREEN 187/187.
   - Checks: `pnpm --filter @ai-delivery-hub/domain test` 187/187 pass (re-run by parent); `pnpm -r typecheck` pass (re-run by parent).
   - Known pending red (intentional signals, not bugs): `apps/server/test/unit/structured-output.test.ts` (AI wire schema lacks `assessment` → T3); `apps/web/test/lib/action-resolver.test.ts` invariant (no UI action for `requester_answers_submitted` → T4). Environmental: `apps/server/test/unit/config.test.ts` fails in any worktree whose path is not `ai-delivery-hub/.worktrees` (pre-existing, same on clean tree).
-- [ ] T2 — Server: `POST /api/tickets` (create manual request with intake; requester/lead/admin), `POST /api/tickets/:id/answers`, requester sees only own tickets in list/detail, `/api/tickets` full list lead/admin only. **Also:** carry `intake` in the manual `ticket_received` payload and set `department`/`requesterUserId` in `initialSnapshot` (T1 left these unset). (route: delegated)
+  - Commits: 0461f34 (feat), 2fbd338 (docs). Review: assessed medium (slice_budget_reached, 668 lines) → consent granted → 1 lens (reliability) approved, acknowledged, lineage `review-05c2a2503e7d9db6`. Reviewed boundary → 2fbd338.
+  - Advisory findings (non-blocking): WARNING `reduce.ts:70-72` clarificationRound trusted from payload (a repeated `round: 1` bypasses the cap); SUGGESTION `transitions.ts:136-144` answers round not checked against the current round; SUGGESTION missing round-invariant tests → folded into T2.
+- [ ] T2 — Server: `POST /api/tickets` (create manual request with intake; requester/lead/admin), `POST /api/tickets/:id/answers`, requester sees only own tickets in list/detail, `/api/tickets` full list lead/admin only. **Also:** carry `intake` in the manual `ticket_received` payload and set `department`/`requesterUserId` in `initialSnapshot` (T1 left these unset). **Also (T1 review follow-up):** guard `requester_questions_asked` so `payload.round === clarificationRound + 1` and `requester_answers_submitted` so `payload.round === clarificationRound`, with invariant tests. (route: delegated)
 - [ ] T3 — Triage AI: three-lens prompt + output schema (fixes structured-output test), RICE computed server-side, answers fed into re-triage (a `triaging` state reached via `requester_answers_submitted` = retriage with answers as context), transition to `awaiting_requester` when questions remain. Unit tests with fake runner. (route: delegated)
 - [ ] T4 — Web requester: `/solicitudes/nueva` form, `/solicitudes` list with state and pending questions, answer form (fixes action-resolver invariant). Spanish copy. (route: delegated)
 - [ ] T5 — Web lead: assessment card (three lenses + RICE) on ticket page, confirm dialog with score overrides, `/inbox` restricted to lead/admin, nav links by role. (route: delegated)
@@ -53,4 +55,4 @@ Forecast ~1500–2000 authored changed lines (> 400) → strategy `ask-on-risk`;
 - 2026-09-24: worktree + branch created, `pnpm install` ok, codegraph initialized.
 
 ## Next step
-T1 domain (delegated writer).
+T2 server (delegated writer).

@@ -32,8 +32,12 @@ export const MANUAL_INTAKE_ACTOR: Actor = { kind: 'system', id: 'manual-intake' 
 export class CreateManualTicket {
   constructor(private readonly deps: CreateManualTicketDeps) {}
 
-  async execute(input: ManualTicketInput): Promise<{ ticketId: string; key: string }> {
-    const key = await this.deps.keys.next();
+  /**
+   * `presetKey` lets a caller reserve the key up front (the Obsidian importer moves the note to
+   * `hub/tickets/<key>.md` before the ticket exists, so the mirror hook finds it already there).
+   */
+  async execute(input: ManualTicketInput, presetKey?: string): Promise<{ ticketId: string; key: string }> {
+    const key = presetKey ?? (await this.deps.keys.next());
     const ticketId = this.deps.ids.uuid();
     const payload: TicketReceivedPayload = {
       source: { kind: 'manual', key },

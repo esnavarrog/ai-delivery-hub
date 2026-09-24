@@ -8,6 +8,7 @@ import { AgentSdkPlanningRunner } from './adapters/agent/planning-runner.js';
 import { AnthropicTriageRunner } from './adapters/agent/triage-runner.js';
 import { createDb } from './adapters/db/client.js';
 import { PgEventStore } from './adapters/db/event-store.js';
+import { PgManualKeySequence } from './adapters/db/manual-key-sequence.js';
 import { PgPlanCommentsRepository, PgPlanVersionsRepository, PgRunsRepository } from './adapters/db/plan-repositories.js';
 import { PgTicketProjection, ProjectingEventStore } from './adapters/db/ticket-projection.js';
 import { PgWatermarkStore } from './adapters/db/watermarks.js';
@@ -20,6 +21,8 @@ import { loadLocalEnv } from './local-env.js';
 import { TicketCommands } from './modules/approval/commands.js';
 import { RunIngestFetch } from './modules/ingest/fetch.js';
 import { IngestWorkPackage } from './modules/ingest/ingest-work-package.js';
+import { CreateManualTicket } from './modules/ingest/manual-ticket.js';
+import { ImportObsidianInbox } from './modules/ingest/obsidian-inbox-import.js';
 import { RunPlanning } from './modules/planning/run-planning.js';
 import { RunTriage } from './modules/triage/run-triage.js';
 
@@ -83,7 +86,20 @@ async function main(): Promise<void> {
   const runTriage = new RunTriage({ eventStore, ids, clock, runner: triageRunner, runs, tickets: projection, planning: planningScheduler, policies });
   const runPlanning = new RunPlanning({ eventStore, ids, clock, runner: planningRunner, runs, planVersions, planComments, worktrees, policies });
   const commands = new TicketCommands({ eventStore, ids, clock, planVersions, planComments, triage: triageScheduler, planning: planningScheduler, allowedRepos: Object.keys(policies.repos) });
-  const ingestFetch = new RunIngestFetch({ op, watermarks, ingest, projectIds: policies.openproject.projectIds, clock });
+
+  let obsidian: ImportObsidianInbox | undefined;
+  if (config.OBSIDIAN_VAULT_DIR) {
+    const manualKeys = new PgManualKeySequence(dbHandle.db);
+    const createManualTicket = new CreateManualTicket({ eventStore, keys: manualKeys, triage: triageScheduler, ids, clock });
+    obsidian = new ImportObsidianInbox({
+      vaultDir: config.OBSIDIAN_VAULT_DIR,
+      inboxDir: config.OBSIDIAN_INBOX_DIR,
+      ticketsDir: config.OBSIDIAN_TICKETS_DIR,
+      keys: manualKeys,
+      createTicket: createManualTicket,
+    });
+  }
+  const ingestFetch = new RunIngestFetch({ op, watermarks, ingest, projectIds: policies.openproject.projectIds, clock, ...(obsidian ? { obsidian } : {}) });
 
   await registerWorkers(
     boss,
@@ -111,6 +127,7 @@ async function main(): Promise<void> {
       worktreesDir: config.WORKTREES_DIR,
       models: { triage: policies.models.triage, planning: policies.models.planning },
       aiCredentialsMode: config.aiCredentialsMode,
+      obsidianVault: config.OBSIDIAN_VAULT_DIR ? { inboxDir: config.OBSIDIAN_INBOX_DIR, ticketsDir: config.OBSIDIAN_TICKETS_DIR } : null,
     });
   });
 

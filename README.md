@@ -39,6 +39,9 @@ Integration tests run only when `DATABASE_URL_TEST` is set; unit tests never tou
 | `ANTHROPIC_API_KEY` | see below | — | Claude API key; required when `AI_CREDENTIALS` resolves to `api-key`, otherwise optional (used only to decide `auto`). |
 | `AI_CREDENTIALS` | no | `auto` | Credentials mode for triage + planning: `auto` (`api-key` when `ANTHROPIC_API_KEY` is set, else `subscription`), `subscription` (always use the logged-in Claude Code session; strips `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` from the agent subprocess env), or `api-key` (always use `ANTHROPIC_API_KEY`; startup fails with a clear error if it is empty). **Subscription mode is for personal/dev use only — production and multi-user deployments must use `api-key`** (Anthropic's terms). **Enforced**: when `NODE_ENV=production`, startup fails unless `AI_CREDENTIALS` resolves to `api-key` (`auto` without a key and explicit `subscription` both refuse to start). Outside production, `auto` falling back to `subscription` logs one warn-level line. |
 | `WORKTREES_DIR` | no | `<repo-root>/.worktrees` | Bare git mirrors + detached read-only checkouts for planning (gitignored). |
+| `OBSIDIAN_VAULT_DIR` | no | unset | Root of an Obsidian vault; see "Obsidian vault" below. Unset: Fetch only pulls OpenProject and the mirror writer is disabled. |
+| `OBSIDIAN_INBOX_DIR` | no | `hub/inbox` | Where manual-ticket notes are read from, relative to `OBSIDIAN_VAULT_DIR`. Must stay inside the vault (no absolute path, no `..`). |
+| `OBSIDIAN_TICKETS_DIR` | no | `hub/tickets` | Where the hub-managed ticket mirror notes live, relative to `OBSIDIAN_VAULT_DIR`. Same path constraints. |
 | `CLAUDE_CODE_PATH` | no | SDK lookup | Explicit path to the Claude Code binary used by the Agent SDK. |
 
 `.env` at the repo root is loaded automatically outside production (`apps/server/src/local-env.ts`).
@@ -123,6 +126,26 @@ Nothing is ingested automatically: there is no OpenProject webhook and no schedu
 ## OpenProject
 
 The hub only ever reads from OpenProject (`GET` requests: work packages, listings, activities). It never posts comments or changes a work package's status — `OpenProjectClient` has no write method, and a unit test (`op-client.test.ts`) fails the build if one is added back. Ingest is a manual, on-demand pull (see the "Ingest" section).
+
+## Obsidian vault
+
+An Obsidian vault is optional (`OBSIDIAN_VAULT_DIR`) and plays two roles: a second ticket intake (manual tickets, alongside OpenProject work packages) and a live mirror of every hub ticket. Postgres and the event store remain the source of truth — the vault never drives state on its own.
+
+- **Layout** (both subfolders configurable — `OBSIDIAN_INBOX_DIR`/`OBSIDIAN_TICKETS_DIR`, default `hub/inbox`/`hub/tickets` — so the vault can follow Tiago Forte's PARA method, e.g. an `Inbox/` area and a `Projects/hub-tickets/` area):
+  - `<OBSIDIAN_INBOX_DIR>/*.md` — notes you write by hand. Frontmatter: `title` (required), `repo` (optional hint for triage), `priority` (`low`/`normal`/`high`/`immediate`), `tags` (list). The body becomes the ticket description.
+    ```markdown
+    ---
+    title: Fix the coffee machine
+    repo: backend-parkingapp
+    priority: low
+    tags: [facilities]
+    ---
+    It leaks from the side when the tank is full.
+    ```
+  - `<OBSIDIAN_TICKETS_DIR>/<key>.md` — hub-managed mirror, one file per ticket (`OP-<workPackageId>` or the manual `M-0001` key). Frontmatter (key, source, title, state, riskTier, targetRepo, updatedAt, hub URL) is owned by the hub and rewritten on every state-changing event; a marker line (`<!-- hub:notes — everything below is yours -->`) separates it from the body below, which is never touched by the hub. Writes are atomic (temp file + rename) and a mirror failure is logged, never breaks the event append.
+- **Import**: `POST /api/ingest/fetch` parses every `*.md` in the inbox. A valid note is moved to `<OBSIDIAN_TICKETS_DIR>/<key>.md` (so it becomes that ticket's mirror, body preserved) and a manual ticket is created, going through the exact same `ticket_received` → triage → planning path as an OpenProject ticket. An invalid note (e.g. missing `title`) is reported in the fetch summary (`obsidian.errors: [{file, message}]`) and left in place, untouched. The note body (and the `repo` hint) is untrusted external text — it flows through the same `wrapUntrusted` path as an OpenProject description and is never placed in a system prompt.
+- Path safety: `OBSIDIAN_INBOX_DIR`/`OBSIDIAN_TICKETS_DIR` are validated at startup (relative, no `..`); at import time every note's resolved realpath is checked to stay inside the vault, so a symlink planted inside the vault that points elsewhere is reported as an error rather than followed.
+- Terminal-state archiving (moving a finished ticket's mirror note elsewhere in the vault) is not implemented; mirror notes stay in `<OBSIDIAN_TICKETS_DIR>` for every state, including terminal ones.
 
 ## Authorship and license
 

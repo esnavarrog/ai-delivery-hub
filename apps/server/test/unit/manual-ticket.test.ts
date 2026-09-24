@@ -53,4 +53,10 @@ describe('CreateManualTicket', () => {
     expect(events[0]?.payload).not.toHaveProperty('tags');
     expect((events[0]?.payload as { priority: string }).priority).toBe('normal');
   });
+
+  it('uses a caller-supplied key instead of drawing a new one when presetKey is given', async () => {
+    const { useCase } = harness();
+    const result = await useCase.execute({ title: 'Preset', description: '' }, 'M-0042');
+    expect(result.key).toBe('M-0042');
+  });
 });

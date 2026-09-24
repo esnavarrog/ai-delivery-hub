@@ -1,3 +1,4 @@
+import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
@@ -6,6 +7,19 @@ const DEFAULT_WORKTREES_DIR = fileURLToPath(new URL('../../../.worktrees', impor
 
 const nonEmpty = z.string().trim().min(1);
 const emptyToUndefined = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+
+/** A relative path that stays inside the vault: no absolute path, no `..` segment. */
+function relativeVaultSubdir(defaultValue: string) {
+  return z.preprocess(
+    emptyToUndefined,
+    nonEmpty
+      .default(defaultValue)
+      .refine(
+        (p) => !isAbsolute(p) && !p.split(/[\\/]+/).some((segment) => segment === '..'),
+        'must be a path relative to OBSIDIAN_VAULT_DIR, with no leading "/" and no ".." segment',
+      ),
+  );
+}
 
 export const Env = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -18,6 +32,12 @@ export const Env = z.object({
   WORKTREES_DIR: z.preprocess(emptyToUndefined, nonEmpty.default(DEFAULT_WORKTREES_DIR)),
   /** Optional explicit path to the Claude Code binary for the Agent SDK; defaults to the SDK's bundled lookup. */
   CLAUDE_CODE_PATH: z.preprocess(emptyToUndefined, nonEmpty.optional()),
+  /** Obsidian vault root. Optional: without it, Fetch only pulls OpenProject and the mirror writer is disabled. */
+  OBSIDIAN_VAULT_DIR: z.preprocess(emptyToUndefined, nonEmpty.optional()),
+  /** Where manual-ticket inbox notes are read from, relative to OBSIDIAN_VAULT_DIR (PARA-friendly, configurable). */
+  OBSIDIAN_INBOX_DIR: relativeVaultSubdir('hub/inbox'),
+  /** Where the hub-managed ticket mirror notes live, relative to OBSIDIAN_VAULT_DIR. */
+  OBSIDIAN_TICKETS_DIR: relativeVaultSubdir('hub/tickets'),
   /** Claude credentials for the model, if set explicitly (an empty string is treated as unset). */
   ANTHROPIC_API_KEY: z.preprocess(emptyToUndefined, nonEmpty.optional()),
   /**

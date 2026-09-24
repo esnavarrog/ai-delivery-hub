@@ -30,6 +30,28 @@ describe('loadConfig', () => {
   });
 });
 
+describe('loadConfig: Obsidian vault', () => {
+  it('is unset and defaults the subfolders when OBSIDIAN_VAULT_DIR is not provided', () => {
+    const config = loadConfig({ ...valid, OBSIDIAN_VAULT_DIR: '' });
+    expect(config.OBSIDIAN_VAULT_DIR).toBeUndefined();
+    expect(config.OBSIDIAN_INBOX_DIR).toBe('hub/inbox');
+    expect(config.OBSIDIAN_TICKETS_DIR).toBe('hub/tickets');
+  });
+
+  it('accepts a configured vault dir and PARA-style relative subfolders', () => {
+    const config = loadConfig({ ...valid, OBSIDIAN_VAULT_DIR: '/home/esteban/vault', OBSIDIAN_INBOX_DIR: '1-Inbox', OBSIDIAN_TICKETS_DIR: '2-Projects/hub-tickets' });
+    expect(config.OBSIDIAN_VAULT_DIR).toBe('/home/esteban/vault');
+    expect(config.OBSIDIAN_INBOX_DIR).toBe('1-Inbox');
+    expect(config.OBSIDIAN_TICKETS_DIR).toBe('2-Projects/hub-tickets');
+  });
+
+  it('rejects an absolute path or a ".." segment in either subfolder', () => {
+    expect(() => loadConfig({ ...valid, OBSIDIAN_INBOX_DIR: '/etc/passwd' })).toThrow(ConfigError);
+    expect(() => loadConfig({ ...valid, OBSIDIAN_INBOX_DIR: '../outside' })).toThrow(ConfigError);
+    expect(() => loadConfig({ ...valid, OBSIDIAN_TICKETS_DIR: 'ok/../../escape' })).toThrow(ConfigError);
+  });
+});
+
 describe('resolveAiCredentialsMode', () => {
   it('auto resolves to api-key when a non-empty key is present, else subscription', () => {
     expect(resolveAiCredentialsMode('auto', 'sk-test')).toBe('api-key');

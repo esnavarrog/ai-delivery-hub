@@ -26,12 +26,15 @@ export type Effort = z.infer<typeof Effort>;
 export const Confidence = z.union([z.literal(0.5), z.literal(0.8), z.literal(1)]);
 export type Confidence = z.infer<typeof Confidence>;
 
+/** Cap on `functional.questions`; a wire reply over this is truncated before validation (see `triage-parse.ts`). */
+export const MAX_CLARIFICATION_QUESTIONS = 5;
+
 const FunctionalAssessment = z.object({
   /** 1 = unclear request, 5 = fully specified. */
   clarity: z.number().int().min(1).max(5),
   acceptanceCriteria: z.array(z.string().min(1)),
-  /** Open questions for the requester; a non-empty list is what drives `awaiting_requester`. At most 5. */
-  questions: z.array(z.string().min(1)).max(5),
+  /** Open questions for the requester; a non-empty list is what drives `awaiting_requester`. At most `MAX_CLARIFICATION_QUESTIONS`. */
+  questions: z.array(z.string().min(1)).max(MAX_CLARIFICATION_QUESTIONS),
 });
 
 const TechnicalAssessment = z.object({

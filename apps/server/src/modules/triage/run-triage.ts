@@ -111,9 +111,35 @@ export function clarificationHistoryFrom(events: readonly TicketEvent[]): Clarif
 }
 
 /**
+ * A ticket already in `triaging` is eligible for a fresh re-triage run only when it just got
+ * there via `requester_answers_submitted` with no `run_started` (kind `triage`) appended since:
+ * scanning backward, the first of the two markers found decides. Finding a `run_started` first
+ * means either the ticket's very first triage leg is still in flight, or an earlier re-triage
+ * run already started — either way a duplicate/concurrent job must be skipped, never start a
+ * second run for the same leg.
+ */
+export function canReTriage(events: readonly TicketEvent[]): boolean {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const e = events[i]!;
+    if (e.type === 'run_started' && (e.payload as { kind?: string }).kind === 'triage') return false;
+    if (e.type === 'requester_answers_submitted') return true;
+  }
+  return false;
+}
+
+/** Routing depends on `assessment.functional.questions`, never `management.recommendation` (a `needs_info` recommendation without questions still completes triage normally). */
+function pendingQuestions(result: TriageResult): readonly string[] {
+  return result.assessment?.functional.questions ?? [];
+}
+
+/**
  * Runs the AI triage for one ticket: `triage_started` → agent → `triage_completed` + follow-up,
- * or `run_failed` back to `received`. Every attempt leaves a `runs` row. Idempotent per state:
- * a ticket that is not in `received` (or is paused) is skipped.
+ * or `run_failed` back to `received`. A ticket in `awaiting_requester` that gets
+ * `requester_answers_submitted` re-enters `triaging` and gets one fresh run with the prior
+ * rounds as context (see `clarificationHistoryFrom`). Every attempt leaves a `runs` row.
+ * Idempotent per state: a ticket not in `received` is skipped, a paused ticket is skipped, and a
+ * ticket already in `triaging` with a run in flight for this leg — its first leg, an earlier
+ * re-triage, or a duplicate/concurrent job — is skipped too (see `canReTriage`).
  */
 export class RunTriage {
   constructor(private readonly deps: RunTriageDeps) {}
@@ -126,10 +152,15 @@ export class RunTriage {
 
     let started;
     try {
-      started = await appendCommand(deps, ticketId, ({ snapshot, guard, event }) => {
-        // A ticket already in `triaging` got there via `requester_answers_submitted`: this is a
-        // re-triage, no `triage_started` transition is needed (or valid) from that state.
+      started = await appendCommand(deps, ticketId, ({ snapshot, events, guard, event }) => {
+        // A ticket already in `triaging` either just got there via `requester_answers_submitted`
+        // (a legitimate re-triage) or already has a run in flight for this leg — `triaging` is
+        // also the "run in progress" state, so a duplicate/retried job must be told apart from a
+        // genuine re-triage instead of starting a second concurrent run.
         if (snapshot.state === 'triaging') {
+          if (!canReTriage(events)) {
+            throw new TransitionDeniedError(ticketId, 'run_started', 'a triage run is already in progress for this ticket; skipping duplicate/concurrent job');
+          }
           guard(TRIAGE_SYSTEM_ACTOR, 'run_started');
           return [event('run_started', TRIAGE_SYSTEM_ACTOR, { runId, payload: { kind: 'triage', model } })];
         }
@@ -174,7 +205,7 @@ export class RunTriage {
       return { kind: 'failed', runId, reason: result.reason, message: result.message };
     }
 
-    const questions = result.value.assessment?.functional.questions ?? [];
+    const questions = pendingQuestions(result.value);
     const outcome = await appendCommand(deps, ticketId, ({ snapshot, guard, event }) => {
       const currentRound = snapshot.clarificationRound ?? 0;
       // After MAX_CLARIFICATION_ROUNDS the questions are still recorded on the assessment for a

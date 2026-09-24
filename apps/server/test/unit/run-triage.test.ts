@@ -231,6 +231,43 @@ describe('RunTriage', () => {
       expect(withHistory.clarificationHistory).toEqual([
         { round: 1, questions: [{ id: 'q1-1', text: 'Which team is affected?' }], answers: [{ questionId: 'q1-1', text: 'Finance' }] },
       ]);
+      expect(runner.triageInputs).toHaveLength(1);
+      expect(await runs.list({ ticketId: 't-1' })).toHaveLength(1);
+    });
+
+    it('skips a duplicate/concurrent job when a re-triage run is already in flight for this leg', async () => {
+      seq = 1;
+      await store.append('t-1', 1, [
+        ev('t-1', 'triage_started', sysActor),
+        ev('t-1', 'run_started', sysActor, { kind: 'triage' }),
+        ev('t-1', 'requester_questions_asked', aiActor, { round: 1, questions: [{ id: 'q1-1', text: 'Which team is affected?' }] }),
+        ev('t-1', 'requester_answers_submitted', requesterActor, { round: 1, answers: [{ questionId: 'q1-1', text: 'Finance' }] }),
+        ev('t-1', 'run_started', sysActor, { kind: 'triage' }), // a re-triage run already started for this leg
+      ]);
+      expect((await snapshot()).state).toBe('triaging');
+
+      const outcome = await useCase.execute('t-1');
+      expect(outcome).toMatchObject({ kind: 'skipped' });
+      expect(runner.triageInputs).toHaveLength(0);
+      expect(await runs.list({ ticketId: 't-1' })).toHaveLength(0);
+      expect(store.types('t-1')).toHaveLength(6); // nothing new appended: no second run
+    });
+
+    it('a failed re-triage (run_failed from triaging) behaves as before: returns the ticket to received', async () => {
+      seq = 1;
+      await store.append('t-1', 1, [
+        ev('t-1', 'triage_started', sysActor),
+        ev('t-1', 'run_started', sysActor, { kind: 'triage' }),
+        ev('t-1', 'requester_questions_asked', aiActor, { round: 1, questions: [{ id: 'q1-1', text: 'Which team is affected?' }] }),
+        ev('t-1', 'requester_answers_submitted', requesterActor, { round: 1, answers: [{ questionId: 'q1-1', text: 'Finance' }] }),
+      ]);
+      runner.scriptTriage({ ok: false, reason: 'invalid_output', message: 'bad output', usage: okUsage });
+      const outcome = await useCase.execute('t-1');
+      expect(outcome).toMatchObject({ kind: 'failed', reason: 'invalid_output' });
+      expect(store.types('t-1').slice(-2)).toEqual(['run_started', 'run_failed']);
+      expect((await snapshot()).state).toBe('received');
+      const [run] = await runs.list({ ticketId: 't-1' });
+      expect(run).toMatchObject({ status: 'failed', failureReason: 'invalid_output' });
     });
 
     it("includes the manual ticket's structured intake as fields in the untrusted ticket context", async () => {

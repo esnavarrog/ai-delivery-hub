@@ -1,4 +1,4 @@
-import { triageResultSchemaFor } from '@ai-delivery-hub/domain';
+import { MAX_CLARIFICATION_QUESTIONS, triageResultSchemaFor } from '@ai-delivery-hub/domain';
 import { describe, expect, it } from 'vitest';
 import { triageWireSchema } from '../../src/adapters/agent/structured-output.js';
 import { MAX_TRIAGE_ATTEMPTS, parseTriageCandidate, triageCorrectiveMessage } from '../../src/adapters/agent/triage-parse.js';
@@ -60,6 +60,19 @@ describe('parseTriageCandidate', () => {
   it('fails cleanly on a non-object candidate (e.g. missing structured output)', () => {
     const result = parseTriageCandidate(undefined, wire, domainSchema);
     expect(result.ok).toBe(false);
+  });
+
+  it(`truncates more than ${MAX_CLARIFICATION_QUESTIONS} functional questions before validating, instead of failing`, () => {
+    const tooMany = { ...validTriage, assessment: { ...assessment, functional: { ...assessment.functional, questions: ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7'] } } };
+    const result = parseTriageCandidate(tooMany, wire, domainSchema);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.assessment?.functional.questions).toEqual(['q1', 'q2', 'q3', 'q4', 'q5']);
+  });
+
+  it(`leaves ${MAX_CLARIFICATION_QUESTIONS} or fewer questions untouched`, () => {
+    const result = parseTriageCandidate({ ...validTriage, assessment: { ...assessment, functional: { ...assessment.functional, questions: ['q1'] } } }, wire, domainSchema);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.assessment?.functional.questions).toEqual(['q1']);
   });
 });
 

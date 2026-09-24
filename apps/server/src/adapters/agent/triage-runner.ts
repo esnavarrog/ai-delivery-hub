@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { triageResultSchemaFor, type AgentRunnerPort, type RunFailureReason, type RunResult, type RunUsage, type TriageResult } from '@ai-delivery-hub/domain';
 import type { EffortLevel } from '@ai-delivery-hub/policies';
-import { z } from 'zod';
 import { structuredOutputSchema, triageWireSchema } from './structured-output.js';
+import { MAX_TRIAGE_ATTEMPTS, parseTriageCandidate, triageCorrectiveMessage } from './triage-parse.js';
 import { buildTriageSystemPrompt, buildTriageUserPrompt, MAX_RECENT_TICKETS, type RecentTicket, type TriagePolicies, type TriageRunnerInput } from './triage-prompt.js';
 
 export { MAX_RECENT_TICKETS, type RecentTicket, type TriagePolicies, type TriageRunnerInput };
@@ -48,7 +48,7 @@ export class AnthropicTriageRunner implements Pick<AgentRunnerPort, 'runTriage'>
     const timer = setTimeout(() => controller.abort(), input.budget.maxDurationMs);
     try {
       let lastError = 'no output';
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      for (let attempt = 0; attempt < MAX_TRIAGE_ATTEMPTS; attempt += 1) {
         let response: Anthropic.Message;
         try {
           response = await this.options.client.messages.create(
@@ -83,16 +83,13 @@ export class AnthropicTriageRunner implements Pick<AgentRunnerPort, 'runTriage'>
           .filter((block): block is Anthropic.TextBlock => block.type === 'text')
           .map((block) => block.text)
           .join('');
-        const parsed = parseTriage(text, response.stop_reason, wire, domainSchema);
+        const parsed = parseAnthropicTriageReply(text, response.stop_reason, wire, domainSchema);
         if (parsed.ok) return { ok: true, value: parsed.value, usage: finish() };
         lastError = parsed.message;
-        if (attempt === 1) break;
+        if (attempt === MAX_TRIAGE_ATTEMPTS - 1) break;
         messages.push(
           { role: 'assistant', content: text.length > 0 ? text : '(empty response)' },
-          {
-            role: 'user',
-            content: `Your previous answer was not a valid JSON object for the required schema: ${parsed.message}\nRespond again with ONLY the corrected JSON object.`,
-          },
+          { role: 'user', content: triageCorrectiveMessage(parsed.message) },
         );
       }
       return fail('invalid_output', lastError);
@@ -102,29 +99,21 @@ export class AnthropicTriageRunner implements Pick<AgentRunnerPort, 'runTriage'>
   }
 }
 
-type ParseOutcome = { ok: true; value: TriageResult } | { ok: false; message: string };
-
-function parseTriage(
+/** Decodes the Messages API reply text into JSON, then delegates to the shared wire→domain parse. */
+function parseAnthropicTriageReply(
   text: string,
   stopReason: Anthropic.StopReason | null,
   wire: ReturnType<typeof triageWireSchema>,
   domainSchema: ReturnType<typeof triageResultSchemaFor>,
-): ParseOutcome {
-  if (stopReason === 'max_tokens') return { ok: false, message: 'response was cut off (stop_reason max_tokens)' };
+) {
+  if (stopReason === 'max_tokens') return { ok: false as const, message: 'response was cut off (stop_reason max_tokens)' };
   let json: unknown;
   try {
     json = JSON.parse(text);
   } catch (err) {
-    return { ok: false, message: `not valid JSON (${(err as Error).message})` };
+    return { ok: false as const, message: `not valid JSON (${(err as Error).message})` };
   }
-  const wireParsed = wire.safeParse(json);
-  if (!wireParsed.success) return { ok: false, message: z.prettifyError(wireParsed.error) };
-  const { alreadyImplementedHint, ...rest } = wireParsed.data;
-  const candidate: Record<string, unknown> = { ...rest };
-  if (alreadyImplementedHint !== null) candidate['alreadyImplementedHint'] = alreadyImplementedHint;
-  const domainParsed = domainSchema.safeParse(candidate);
-  if (!domainParsed.success) return { ok: false, message: z.prettifyError(domainParsed.error) };
-  return { ok: true, value: domainParsed.data };
+  return parseTriageCandidate(json, wire, domainSchema);
 }
 
 function describeError(err: unknown): string {

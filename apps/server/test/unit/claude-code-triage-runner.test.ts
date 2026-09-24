@@ -235,7 +235,7 @@ describe('ClaudeCodeTriageRunner', () => {
     expect(result).toMatchObject({ ok: false, reason: 'budget_exhausted' });
   });
 
-  it('maps SDK error results: max turns to budget_exhausted, execution errors to provider_error', async () => {
+  it('maps the error_max_turns result subtype to budget_exhausted and error_during_execution to provider_error', async () => {
     const { query } = fakeQuery([[failure('error_max_turns')], [failure('error_during_execution', ['CLI crashed'])]]);
     const r = runner(query);
     expect(await r.runTriage(input())).toMatchObject({ ok: false, reason: 'budget_exhausted', message: expect.stringMatching(/turns/) });

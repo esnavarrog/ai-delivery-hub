@@ -1,13 +1,13 @@
-import { query as sdkQuery, type Options, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query as sdkQuery, type Options } from '@anthropic-ai/claude-agent-sdk';
 import { triageResultSchemaFor, type AgentRunnerPort, type RunFailureReason, type RunResult, type RunUsage, type TriageResult } from '@ai-delivery-hub/domain';
 import type { EffortLevel } from '@ai-delivery-hub/policies';
-import { z } from 'zod';
-import { agentSubprocessEnv } from './planning-runner.js';
+import { agentSubprocessEnv, type AgentQuery } from './planning-runner.js';
 import { structuredOutputSchema, triageWireSchema } from './structured-output.js';
+import { MAX_TRIAGE_ATTEMPTS, parseTriageCandidate, triageCorrectiveMessage } from './triage-parse.js';
 import { buildTriageSystemPrompt, buildTriageUserPrompt, type TriagePolicies, type TriageRunnerInput } from './triage-prompt.js';
 
-/** `query` from `@anthropic-ai/claude-agent-sdk`, narrowed to what the runner consumes; tests inject a generator. */
-export type AgentQuery = (params: { prompt: string; options?: Options }) => AsyncIterable<SDKMessage> & { close?(): void };
+// Re-exported for callers that imported the type from this module before it moved to planning-runner.ts.
+export type { AgentQuery };
 
 export interface ClaudeCodeTriageRunnerOptions {
   query?: AgentQuery;
@@ -57,11 +57,8 @@ export class ClaudeCodeTriageRunner implements Pick<AgentRunnerPort, 'runTriage'
     const timer = setTimeout(() => controller.abort(), input.budget.maxDurationMs);
     try {
       let lastError = 'no output';
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const prompt =
-          attempt === 0
-            ? basePrompt
-            : `${basePrompt}\n\nYour previous answer was not a valid JSON object for the required schema: ${lastError}\nRespond again with ONLY the corrected JSON object.`;
+      for (let attempt = 0; attempt < MAX_TRIAGE_ATTEMPTS; attempt += 1) {
+        const prompt = attempt === 0 ? basePrompt : `${basePrompt}\n\n${triageCorrectiveMessage(lastError)}`;
         const outcome = await this.runOnce(prompt, systemPrompt, outputFormat, controller);
         usage.inputTokens += outcome.usage.inputTokens;
         usage.outputTokens += outcome.usage.outputTokens;
@@ -72,7 +69,7 @@ export class ClaudeCodeTriageRunner implements Pick<AgentRunnerPort, 'runTriage'
         if (usage.inputTokens + usage.outputTokens > input.budget.maxTokens) {
           return fail('budget_exhausted', `token budget of ${input.budget.maxTokens} exceeded (${usage.inputTokens + usage.outputTokens} used)`);
         }
-        const parsed = parseTriage(outcome.structuredOutput, wire, domainSchema);
+        const parsed = parseClaudeCodeTriageReply(outcome.structuredOutput, wire, domainSchema);
         if (parsed.ok) return { ok: true, value: parsed.value, usage: finish() };
         lastError = parsed.message;
       }
@@ -152,16 +149,8 @@ type RunOnceOutcome =
   | { kind: 'failed'; reason: RunFailureReason; message: string; usage: RunOnceUsage }
   | { kind: 'aborted'; usage: RunOnceUsage };
 
-type ParseOutcome = { ok: true; value: TriageResult } | { ok: false; message: string };
-
-function parseTriage(structuredOutput: unknown, wire: ReturnType<typeof triageWireSchema>, domainSchema: ReturnType<typeof triageResultSchemaFor>): ParseOutcome {
-  if (structuredOutput === undefined) return { ok: false, message: 'no structured output returned by the agent' };
-  const wireParsed = wire.safeParse(structuredOutput);
-  if (!wireParsed.success) return { ok: false, message: z.prettifyError(wireParsed.error) };
-  const { alreadyImplementedHint, ...rest } = wireParsed.data;
-  const candidate: Record<string, unknown> = { ...rest };
-  if (alreadyImplementedHint !== null) candidate['alreadyImplementedHint'] = alreadyImplementedHint;
-  const domainParsed = domainSchema.safeParse(candidate);
-  if (!domainParsed.success) return { ok: false, message: z.prettifyError(domainParsed.error) };
-  return { ok: true, value: domainParsed.data };
+/** The Agent SDK already decoded `structured_output` for us; only guard the "no output at all" case before the shared parse. */
+function parseClaudeCodeTriageReply(structuredOutput: unknown, wire: ReturnType<typeof triageWireSchema>, domainSchema: ReturnType<typeof triageResultSchemaFor>) {
+  if (structuredOutput === undefined) return { ok: false as const, message: 'no structured output returned by the agent' };
+  return parseTriageCandidate(structuredOutput, wire, domainSchema);
 }

@@ -2,6 +2,7 @@ import type { PlanCommentDto } from '@ai-delivery-hub/contracts';
 import type { SectionPath } from '@ai-delivery-hub/domain';
 import { CheckCircle2, MessageSquarePlus } from 'lucide-react';
 import { useState } from 'react';
+import { es } from '@/i18n/es';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { RelativeTime } from '@/ui/relative-time';
@@ -33,7 +34,7 @@ export function SectionComments({ sectionPath, comments, canComment, canResolve,
   return (
     <div className="mt-3 flex flex-col gap-2">
       {comments.length > 0 ? (
-        <ul className="flex flex-col gap-2" aria-label={`Comments on ${sectionPath}`}>
+        <ul className="flex flex-col gap-2" aria-label={es.plan.commentsOnSection(sectionPath)}>
           {comments.map((c) => {
             const resolved = c.resolvedByVersion !== null;
             return (
@@ -44,20 +45,20 @@ export function SectionComments({ sectionPath, comments, canComment, canResolve,
                     <RelativeTime iso={c.createdAt} />
                     {resolved ? (
                       <Badge variant="outline" className="border-success/40 text-success">
-                        addressed in v{c.resolvedByVersion}
+                        {es.plan.addressedIn(c.resolvedByVersion ?? 0)}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="border-warning/50 text-warning-foreground dark:text-warning">
-                        unresolved
+                        {es.plan.unresolved}
                       </Badge>
                     )}
                   </div>
                   <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
                 </div>
                 {!resolved && canResolve ? (
-                  <Button variant="ghost" size="sm" className="shrink-0" disabled={busy} onClick={() => onResolve(c.id)} aria-label={`Resolve comment by ${c.authorId}`}>
+                  <Button variant="ghost" size="sm" className="shrink-0" disabled={busy} onClick={() => onResolve(c.id)} aria-label={es.plan.resolveAria(c.authorId)}>
                     <CheckCircle2 className="size-4" aria-hidden="true" />
-                    Resolve
+                    {es.plan.resolve}
                   </Button>
                 ) : null}
               </li>
@@ -74,20 +75,20 @@ export function SectionComments({ sectionPath, comments, canComment, canResolve,
               submit();
             }}
           >
-            <Textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="What should change in this section?" aria-label={`Comment on ${sectionPath}`} rows={3} autoFocus />
+            <Textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder={es.plan.commentPlaceholder} aria-label={es.plan.commentOnSection(sectionPath)} rows={3} autoFocus />
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={busy || body.trim().length === 0}>
-                Post comment
+                {es.plan.postComment}
               </Button>
               <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
-                Cancel
+                {es.plan.cancel}
               </Button>
             </div>
           </form>
         ) : (
-          <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setOpen(true)} aria-label={`Comment on ${sectionPath}`}>
+          <Button variant="ghost" size="sm" className="self-start text-muted-foreground" onClick={() => setOpen(true)} aria-label={es.plan.commentOnSection(sectionPath)}>
             <MessageSquarePlus className="size-4" aria-hidden="true" />
-            Comment
+            {es.plan.comment}
           </Button>
         )
       ) : null}

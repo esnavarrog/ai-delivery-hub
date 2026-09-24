@@ -12,17 +12,17 @@ describe('Timeline', () => {
     ];
     render(<Timeline events={events} planHref={(ref) => `/tickets/t1/plan?version=${ref}`} />);
     const items = screen.getAllByRole('listitem');
-    expect(items[0]).toHaveTextContent('AI created plan v1');
-    expect(items[1]).toHaveTextContent('Ticket received from OpenProject');
+    expect(items[0]).toHaveTextContent('La IA creó el plan v1');
+    expect(items[1]).toHaveTextContent('Ticket recibido desde OpenProject');
     const link = screen.getByRole('link', { name: /plan v1/i });
     expect(link).toHaveAttribute('href', '/tickets/t1/plan?version=pv1');
 
-    await userEvent.click(screen.getAllByRole('button', { name: /show details/i })[0]!);
+    await userEvent.click(screen.getAllByRole('button', { name: /mostrar detalles/i })[0]!);
     expect(screen.getByText(/"baseCommitSha"/)).toBeInTheDocument();
   });
 
   it('shows an empty message when there are no events', () => {
     render(<Timeline events={[]} planHref={() => '#'} />);
-    expect(screen.getByText(/no events yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/aún no hay eventos/i)).toBeInTheDocument();
   });
 });

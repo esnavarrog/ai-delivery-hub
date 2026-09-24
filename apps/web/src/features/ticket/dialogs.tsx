@@ -1,6 +1,8 @@
 import type { ApproveBody, ConfirmTriageBody, DuplicateBody, RequestChangesBody } from '@ai-delivery-hub/contracts';
 import { RiskTier, TicketCategory, type TicketSnapshot } from '@ai-delivery-hub/domain';
 import { useState } from 'react';
+import { es } from '@/i18n/es';
+import { riskTierLabels, ticketCategoryLabels } from '@/i18n/labels';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Input } from '@/ui/input';
@@ -57,17 +59,18 @@ export function ReasonDialog({
         >
           {withDuplicateOf ? (
             <label className="flex flex-col gap-1 text-sm">
-              Duplicate of (ticket id, optional)
-              <Input value={duplicateOf} onChange={(e) => setDuplicateOf(e.target.value)} placeholder="ticket id" />
+              {es.dialogs.duplicateOfLabel}
+              <Input value={duplicateOf} onChange={(e) => setDuplicateOf(e.target.value)} placeholder={es.dialogs.duplicateOfPlaceholder} />
             </label>
           ) : null}
           <label className="flex flex-col gap-1 text-sm">
-            Reason{reasonRequired ? '' : ' (optional)'}
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Recorded on the timeline and posted to OpenProject" />
+            {es.dialogs.reasonLabel}
+            {reasonRequired ? '' : es.dialogs.optionalSuffix}
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder={es.dialogs.reasonPlaceholder} />
           </label>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+              {es.dialogs.cancel}
             </Button>
             <Button type="submit" variant={destructive ? 'destructive' : 'default'} disabled={!canConfirm}>
               {confirmLabel}
@@ -87,11 +90,9 @@ export function RequestChangesDialog({ open, busy, onOpenChange, unresolvedComme
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Request changes</DialogTitle>
+          <DialogTitle>{es.dialogs.requestChanges.title}</DialogTitle>
           <DialogDescription>
-            {unresolvedComments > 0
-              ? `${unresolvedComments} unresolved comment(s) will feed the next plan version. Add an overall reason if you want.`
-              : 'There are no unresolved comments, so a reason is required. It is sent to the AI for the next version.'}
+            {unresolvedComments > 0 ? es.dialogs.requestChanges.descriptionWithComments(unresolvedComments) : es.dialogs.requestChanges.descriptionWithoutComments}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -103,15 +104,16 @@ export function RequestChangesDialog({ open, busy, onOpenChange, unresolvedComme
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
-            Reason{reasonRequired ? '' : ' (optional)'}
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus placeholder="What must change in the next version?" />
+            {es.dialogs.reasonLabel}
+            {reasonRequired ? '' : es.dialogs.optionalSuffix}
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus placeholder={es.dialogs.requestChanges.reasonPlaceholder} />
           </label>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+              {es.dialogs.cancel}
             </Button>
             <Button type="submit" disabled={!canConfirm}>
-              Request changes
+              {es.dialogs.requestChanges.confirm}
             </Button>
           </DialogFooter>
         </form>
@@ -130,8 +132,8 @@ export function ApproveDialog({ open, busy, onOpenChange, login, onConfirm }: Ba
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Approve high-risk plan</DialogTitle>
-          <DialogDescription>This ticket touches payments, auth or PII. Name a second approver (a dev, lead or admin other than you) who has reviewed the plan.</DialogDescription>
+          <DialogTitle>{es.dialogs.approve.title}</DialogTitle>
+          <DialogDescription>{es.dialogs.approve.description}</DialogDescription>
         </DialogHeader>
         <form
           className="flex flex-col gap-3"
@@ -144,20 +146,20 @@ export function ApproveDialog({ open, busy, onOpenChange, login, onConfirm }: Ba
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
-            Second approver login
-            <Input value={second} onChange={(e) => setSecond(e.target.value)} placeholder="github login" autoFocus aria-invalid={sameAsMe} />
-            {sameAsMe ? <span className="text-xs text-destructive">The second approver must be someone else.</span> : null}
+            {es.dialogs.approve.secondApproverLabel}
+            <Input value={second} onChange={(e) => setSecond(e.target.value)} placeholder="usuario de github" autoFocus aria-invalid={sameAsMe} />
+            {sameAsMe ? <span className="text-xs text-destructive">{es.dialogs.approve.secondApproverSameError}</span> : null}
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Note (optional)
+            {es.dialogs.approve.noteLabel}
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
           </label>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+              {es.dialogs.cancel}
             </Button>
             <Button type="submit" disabled={!canConfirm}>
-              Approve plan
+              {es.dialogs.approve.confirm}
             </Button>
           </DialogFooter>
         </form>
@@ -176,8 +178,8 @@ export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Confirm triage</DialogTitle>
-          <DialogDescription>Keep the AI suggestion or override any field. Planning starts once an owner claims the ticket.</DialogDescription>
+          <DialogTitle>{es.dialogs.confirmTriage.title}</DialogTitle>
+          <DialogDescription>{es.dialogs.confirmTriage.description}</DialogDescription>
         </DialogHeader>
         <form
           className="flex flex-col gap-3"
@@ -194,41 +196,41 @@ export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, o
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
-            Category
+            {es.dialogs.confirmTriage.categoryLabel}
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger aria-label="Category">
-                <SelectValue placeholder="Category" />
+              <SelectTrigger aria-label={es.dialogs.confirmTriage.categoryLabel}>
+                <SelectValue placeholder={es.dialogs.confirmTriage.categoryLabel} />
               </SelectTrigger>
               <SelectContent>
                 {TicketCategory.options.map((c) => (
-                  <SelectItem key={c} value={c} className="capitalize">
-                    {c}
+                  <SelectItem key={c} value={c}>
+                    {ticketCategoryLabels[c]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Risk tier
+            {es.dialogs.confirmTriage.riskLabel}
             <Select value={risk} onValueChange={setRisk}>
-              <SelectTrigger aria-label="Risk tier">
-                <SelectValue placeholder="Risk tier" />
+              <SelectTrigger aria-label={es.dialogs.confirmTriage.riskLabel}>
+                <SelectValue placeholder={es.dialogs.confirmTriage.riskLabel} />
               </SelectTrigger>
               <SelectContent>
                 {RiskTier.options.map((r) => (
-                  <SelectItem key={r} value={r} className="capitalize">
-                    {r}
+                  <SelectItem key={r} value={r}>
+                    {riskTierLabels[r]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Target repository
+            {es.dialogs.confirmTriage.repositoryLabel}
             {repoOptions.length > 1 ? (
               <Select value={repo} onValueChange={setRepo}>
-                <SelectTrigger aria-label="Target repository">
-                  <SelectValue placeholder="Repository" />
+                <SelectTrigger aria-label={es.dialogs.confirmTriage.repositoryLabel}>
+                  <SelectValue placeholder={es.dialogs.confirmTriage.repositoryLabel} />
                 </SelectTrigger>
                 <SelectContent>
                   {repoOptions.map((r) => (
@@ -239,15 +241,15 @@ export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, o
                 </SelectContent>
               </Select>
             ) : (
-              <Input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="repository name from repos.yaml" aria-label="Target repository" />
+              <Input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder={es.dialogs.confirmTriage.repositoryPlaceholder} aria-label={es.dialogs.confirmTriage.repositoryLabel} />
             )}
           </label>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+              {es.dialogs.cancel}
             </Button>
             <Button type="submit" disabled={busy}>
-              Confirm triage
+              {es.dialogs.confirmTriage.confirm}
             </Button>
           </DialogFooter>
         </form>

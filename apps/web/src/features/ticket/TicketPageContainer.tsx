@@ -3,6 +3,7 @@ import { FileText } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { useCurrentLogin } from '@/app/current-user';
 import { useMe, useTicket } from '@/app/queries';
+import { es } from '@/i18n/es';
 import { useTicketStream } from '@/app/use-ticket-stream';
 import { resolveActions } from '@/lib/action-resolver';
 import { Button } from '@/ui/button';
@@ -61,11 +62,11 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
   }
   if (ticketQuery.isError || !detail || !actions) {
     return (
-      <EmptyState title="Ticket not available">
-        {ticketQuery.error instanceof Error ? ticketQuery.error.message : 'Could not load this ticket.'}
+      <EmptyState title={es.ticketPage.notAvailableTitle}>
+        {ticketQuery.error instanceof Error ? ticketQuery.error.message : es.ticketPage.couldNotLoad}
         <div className="mt-3">
           <Button variant="outline" onClick={() => void ticketQuery.refetch()}>
-            Retry
+            {es.ticketPage.retry}
           </Button>
         </div>
       </EmptyState>
@@ -83,18 +84,18 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
           detail.latestPlan ? (
             <Button variant="outline" onClick={goToPlan}>
               <FileText className="size-4" aria-hidden="true" />
-              Open plan v{detail.latestPlan.version}
+              {es.ticketPage.openPlan(detail.latestPlan.version)}
             </Button>
           ) : undefined
         }
       />
       <RiskBanner tier={ticket.riskTier} />
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-        <section aria-label="Timeline" className="min-w-0">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Timeline</h2>
+        <section aria-label={es.ticketPage.timelineAria} className="min-w-0">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{es.ticketPage.timelineHeading}</h2>
           <Timeline events={detail.events} planHref={planHref} onNavigate={(href) => void navigate({ href })} />
         </section>
-        <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start" aria-label="Actions">
+        <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start" aria-label={es.ticketPage.actionsAria}>
           <ActionPanel detail={detail} actions={actions} role={role} login={login} busy={busy} now={now} onAction={onAction} />
         </aside>
       </div>
@@ -122,9 +123,9 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         open={dialog === 'reject'}
         busy={busy}
         onOpenChange={(o) => setDialog(o ? 'reject' : null)}
-        title="Reject ticket"
-        description="The ticket closes as rejected. Nobody will plan or implement it."
-        confirmLabel="Reject"
+        title={es.dialogs.reject.title}
+        description={es.dialogs.reject.description}
+        confirmLabel={es.dialogs.reject.confirm}
         destructive
         onConfirm={(body) => send({ kind: 'reject', body: { ...(body.reason ? { reason: body.reason } : {}) } })}
       />
@@ -133,9 +134,9 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         open={dialog === 'duplicate'}
         busy={busy}
         onOpenChange={(o) => setDialog(o ? 'duplicate' : null)}
-        title="Mark as duplicate"
-        description="The ticket closes as a duplicate of another one."
-        confirmLabel="Mark as duplicate"
+        title={es.dialogs.duplicate.title}
+        description={es.dialogs.duplicate.description}
+        confirmLabel={es.dialogs.duplicate.confirm}
         destructive
         withDuplicateOf
         onConfirm={(body) => send({ kind: 'duplicate', body })}
@@ -145,9 +146,9 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         open={dialog === 'already_implemented'}
         busy={busy}
         onOpenChange={(o) => setDialog(o ? 'already_implemented' : null)}
-        title="Already implemented"
-        description="The ticket closes because the requested behaviour already exists."
-        confirmLabel="Close as implemented"
+        title={es.dialogs.alreadyImplemented.title}
+        description={es.dialogs.alreadyImplemented.description}
+        confirmLabel={es.dialogs.alreadyImplemented.confirm}
         destructive
         onConfirm={(body) => send({ kind: 'already_implemented', body: { ...(body.reason ? { reason: body.reason } : {}) } })}
       />
@@ -156,9 +157,9 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         open={dialog === 'reopen'}
         busy={busy}
         onOpenChange={(o) => setDialog(o ? 'reopen' : null)}
-        title="Reopen plan"
-        description="The plan goes back to review. Say why so the timeline stays understandable."
-        confirmLabel="Reopen"
+        title={es.dialogs.reopen.title}
+        description={es.dialogs.reopen.description}
+        confirmLabel={es.dialogs.reopen.confirm}
         onConfirm={(body) => send({ kind: 'reopen', body: { ...(body.reason ? { reason: body.reason } : {}) } })}
       />
       <ReasonDialog
@@ -166,9 +167,9 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         open={dialog === 'replan'}
         busy={busy}
         onOpenChange={(o) => setDialog(o ? 'replan' : null)}
-        title="Ask the AI to re-plan"
-        description="A new plan version is produced from the comments and your reason."
-        confirmLabel="Re-plan"
+        title={es.dialogs.replan.title}
+        description={es.dialogs.replan.description}
+        confirmLabel={es.dialogs.replan.confirm}
         onConfirm={(body) => send({ kind: 'replan', body: { ...(body.reason ? { reason: body.reason } : {}) } })}
       />
       <ReasonDialog
@@ -176,9 +177,9 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         open={dialog === 'stop'}
         busy={busy}
         onOpenChange={(o) => setDialog(o ? 'stop' : null)}
-        title="Stop the AI"
-        description="Sets the paused flag. The current run finishes or fails on its own, but no further automated step starts until someone resumes."
-        confirmLabel="Stop AI"
+        title={es.dialogs.stop.title}
+        description={es.dialogs.stop.description}
+        confirmLabel={es.dialogs.stop.confirm}
         destructive
         onConfirm={(body) => send({ kind: 'flag', body: { flag: 'paused', set: true, ...(body.reason ? { reason: body.reason } : {}) } })}
       />

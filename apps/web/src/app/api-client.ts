@@ -31,7 +31,7 @@ export function createApiClient(fetchImpl: typeof fetch = (...args) => fetch(...
     try {
       res = await fetchImpl(`${baseUrl}${path}`, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
     } catch (err) {
-      throw new ApiError(0, 'network', err instanceof Error ? err.message : 'network error');
+      throw new ApiError(0, 'network', err instanceof Error ? err.message : 'error de red');
     }
     if (!res.ok) {
       let message = `${res.status} ${res.statusText}`;

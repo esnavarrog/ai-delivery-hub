@@ -1,5 +1,7 @@
 import type { TicketSnapshot } from '@ai-delivery-hub/domain';
 import { GitBranch } from 'lucide-react';
+import { es } from '@/i18n/es';
+import { ticketPriorityLabels } from '@/i18n/labels';
 import { cn } from '@/lib/utils';
 import { ActorAvatar } from '@/ui/actor-avatar';
 import { FlagChips } from '@/ui/flag-chips';
@@ -24,10 +26,10 @@ export function TicketCard({ ticket, selected, onOpen }: { ticket: TicketSnapsho
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <SourceBadge source={ticket.source} />
             <span className="font-mono">{ticket.displayKey}</span>
-            {ticket.priority !== 'normal' ? <span className="capitalize">{ticket.priority}</span> : null}
+            {ticket.priority !== 'normal' ? <span>{ticketPriorityLabels[ticket.priority]}</span> : null}
           </div>
           <h3 className="truncate font-medium">
-            <button type="button" className="text-left focus-visible:outline-none" onClick={(e) => { e.stopPropagation(); onOpen(ticket); }} aria-label={`Open ticket ${ticket.displayKey} ${ticket.subject}`}>
+            <button type="button" className="text-left focus-visible:outline-none" onClick={(e) => { e.stopPropagation(); onOpen(ticket); }} aria-label={es.board.openTicketAria(ticket.displayKey, ticket.subject)}>
               {ticket.subject}
             </button>
           </h3>

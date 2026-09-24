@@ -1,4 +1,6 @@
 import type { TicketEvent, TicketSnapshot, TriageResult } from '@ai-delivery-hub/domain';
+import { es } from '@/i18n/es';
+import { ticketCategoryLabels } from '@/i18n/labels';
 import { humanize } from '@/lib/format';
 import { RiskBadge } from '@/ui/risk-badge';
 
@@ -9,25 +11,26 @@ export function latestTriage(events: readonly TicketEvent[]): TriageResult | und
 }
 
 export function TriageSuggestionCard({ ticket, triage }: { ticket: TicketSnapshot; triage: TriageResult | undefined }) {
+  const category = ticket.category ?? triage?.category;
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm" aria-label="AI triage suggestion">
-      <dt className="text-muted-foreground">Category</dt>
-      <dd className="capitalize">{ticket.category ?? triage?.category ?? 'unknown'}</dd>
-      <dt className="text-muted-foreground">Risk</dt>
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm" aria-label={es.triageSuggestion.ariaLabel}>
+      <dt className="text-muted-foreground">{es.triageSuggestion.category}</dt>
+      <dd>{category ? ticketCategoryLabels[category] : es.triageSuggestion.unknown}</dd>
+      <dt className="text-muted-foreground">{es.triageSuggestion.risk}</dt>
       <dd>
         <RiskBadge tier={ticket.riskTier ?? triage?.riskTier} />
       </dd>
-      <dt className="text-muted-foreground">Repository</dt>
-      <dd className="font-mono text-xs sm:text-sm">{ticket.targetRepo ?? triage?.targetRepo ?? 'unknown'}</dd>
+      <dt className="text-muted-foreground">{es.triageSuggestion.repository}</dt>
+      <dd className="font-mono text-xs sm:text-sm">{ticket.targetRepo ?? triage?.targetRepo ?? es.triageSuggestion.unknown}</dd>
       {triage?.summary ? (
         <>
-          <dt className="text-muted-foreground">Summary</dt>
+          <dt className="text-muted-foreground">{es.triageSuggestion.summary}</dt>
           <dd>{triage.summary}</dd>
         </>
       ) : null}
       {triage && triage.duplicateCandidates.length > 0 ? (
         <>
-          <dt className="text-muted-foreground">Possible duplicates</dt>
+          <dt className="text-muted-foreground">{es.triageSuggestion.possibleDuplicates}</dt>
           <dd>
             <ul className="flex flex-col gap-1">
               {triage.duplicateCandidates.map((d) => (
@@ -41,7 +44,7 @@ export function TriageSuggestionCard({ ticket, triage }: { ticket: TicketSnapsho
       ) : null}
       {triage?.alreadyImplementedHint ? (
         <>
-          <dt className="text-muted-foreground">Already implemented?</dt>
+          <dt className="text-muted-foreground">{es.triageSuggestion.alreadyImplemented}</dt>
           <dd>
             {triage.alreadyImplementedHint.explanation}
             {triage.alreadyImplementedHint.evidencePaths.length > 0 ? (
@@ -56,7 +59,7 @@ export function TriageSuggestionCard({ ticket, triage }: { ticket: TicketSnapsho
       ) : null}
       {triage && triage.riskSignals.length > 0 ? (
         <>
-          <dt className="text-muted-foreground">Risk signals</dt>
+          <dt className="text-muted-foreground">{es.triageSuggestion.riskSignals}</dt>
           <dd>{triage.riskSignals.map((s) => humanize(s)).join(', ')}</dd>
         </>
       ) : null}

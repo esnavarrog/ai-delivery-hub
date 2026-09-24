@@ -18,6 +18,7 @@ import type {
 } from '@ai-delivery-hub/contracts';
 import { useMutation, useQuery, useQueryClient, type UseMutationOptions } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { es } from '@/i18n/es';
 import { api, ApiError } from './api-client';
 import { useCurrentLogin } from './current-user';
 
@@ -76,10 +77,10 @@ export function useRuns(ticketId?: string) {
 
 /** One-line summary of a fetch, for the toast. */
 export function describeFetchSummary(summary: FetchResponse): string {
-  const parts = [`OpenProject: ${summary.openproject.fetched} fetched, ${summary.openproject.created} new, ${summary.openproject.updated} updated.`];
+  const parts = [`OpenProject: ${summary.openproject.fetched} obtenidos, ${summary.openproject.created} nuevos, ${summary.openproject.updated} actualizados.`];
   if (summary.obsidian) {
-    const errorNote = summary.obsidian.errors.length > 0 ? `, ${summary.obsidian.errors.length} invalid` : '';
-    parts.push(`Obsidian: ${summary.obsidian.imported} imported, ${summary.obsidian.skipped} skipped${errorNote}.`);
+    const errorNote = summary.obsidian.errors.length > 0 ? `, ${summary.obsidian.errors.length} inválidos` : '';
+    parts.push(`Obsidian: ${summary.obsidian.imported} importados, ${summary.obsidian.skipped} omitidos${errorNote}.`);
   }
   return parts.join(' ');
 }
@@ -130,21 +131,7 @@ const ROUTES: Record<TicketCommand['kind'], string> = {
   resolve_comment: 'comments',
 };
 
-export const SUCCESS_MESSAGES: Record<TicketCommand['kind'], string> = {
-  claim: 'Ticket claimed. Planning starts now.',
-  confirm_triage: 'Triage confirmed.',
-  request_changes: 'Changes requested.',
-  approve: 'Plan approved.',
-  reject: 'Ticket rejected.',
-  duplicate: 'Ticket marked as duplicate.',
-  already_implemented: 'Ticket marked as already implemented.',
-  reopen: 'Plan reopened for review.',
-  flag: 'Flag updated.',
-  retriage: 'Triage queued again.',
-  replan: 'New plan version requested.',
-  comment: 'Comment added.',
-  resolve_comment: 'Comment resolved.',
-};
+export const SUCCESS_MESSAGES: Record<TicketCommand['kind'], string> = es.toasts;
 
 export type CommandResult = CommandResponse | CommentResponse | EnqueuedResponse;
 
@@ -160,7 +147,7 @@ export function runTicketCommand(ticketId: string, command: TicketCommand): Prom
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error) return err.message;
-  return 'Something went wrong';
+  return es.errors.somethingWrong;
 }
 
 /** One mutation for every ticket command: toast on both outcomes, then invalidate the ticket queries. */

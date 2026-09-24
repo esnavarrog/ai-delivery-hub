@@ -1,6 +1,7 @@
 import type { Artifact, TicketEvent } from '@ai-delivery-hub/domain';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { useState, type MouseEvent } from 'react';
+import { es } from '@/i18n/es';
 import { eventToSentence } from '@/lib/event-to-sentence';
 import { humanize } from '@/lib/format';
 import { ActorAvatar } from '@/ui/actor-avatar';
@@ -19,7 +20,7 @@ export interface TimelineProps {
 function artifactLabel(artifact: Artifact, text: string): string {
   if (artifact.kind === 'plan_version') {
     const match = /plan v(\d+)/.exec(text);
-    return match ? `Open plan v${match[1]}` : 'Open plan version';
+    return match ? es.timeline.openPlanVersion(match[1] ?? '') : es.timeline.openPlanVersionGeneric;
   }
   return `${humanize(artifact.kind, true)} ${artifact.ref}`;
 }
@@ -27,11 +28,11 @@ function artifactLabel(artifact: Artifact, text: string): string {
 /** Events newest first, each as one sentence with actor icon, expandable payload and artifact links. */
 export function Timeline({ events, planHref, onNavigate }: TimelineProps) {
   if (events.length === 0) {
-    return <EmptyState title="No events yet">The timeline fills up as soon as the AI or a developer acts on this ticket.</EmptyState>;
+    return <EmptyState title={es.timeline.emptyTitle}>{es.timeline.emptyBody}</EmptyState>;
   }
   const ordered = [...events].sort((a, b) => b.seq - a.seq);
   return (
-    <ol className="relative flex flex-col gap-1" aria-label="Ticket timeline">
+    <ol className="relative flex flex-col gap-1" aria-label={es.timeline.ariaLabel}>
       {ordered.map((event) => (
         <TimelineItem key={event.id} event={event} planHref={planHref} onNavigate={onNavigate} />
       ))}
@@ -58,9 +59,13 @@ function TimelineItem({ event, planHref, onNavigate }: { event: TicketEvent } & 
           <p className="text-sm">{sentence.text}</p>
           <RelativeTime iso={event.createdAt} className="text-xs text-muted-foreground" />
         </div>
-        {sentence.reason ? <p className="mt-0.5 text-sm text-muted-foreground">Reason: {sentence.reason}</p> : null}
+        {sentence.reason ? (
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {es.timeline.reasonPrefix} {sentence.reason}
+          </p>
+        ) : null}
         {sentence.artifacts.length > 0 ? (
-          <div className="mt-1 flex flex-wrap gap-2" aria-label="Artifacts">
+          <div className="mt-1 flex flex-wrap gap-2" aria-label={es.timeline.artifactsAria}>
             {sentence.artifacts.map((artifact) => {
               const href = artifact.kind === 'plan_version' ? planHref(artifact.ref) : undefined;
               const label = artifactLabel(artifact, sentence.text);
@@ -83,10 +88,10 @@ function TimelineItem({ event, planHref, onNavigate }: { event: TicketEvent } & 
           <div className="mt-1">
             <Button variant="ghost" size="sm" className="h-6 px-1 text-xs text-muted-foreground" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
               {open ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}
-              {open ? 'Hide details' : 'Show details'}
+              {open ? es.timeline.hideDetails : es.timeline.showDetails}
             </Button>
             {open ? (
-              <pre className="mt-1 max-h-64 overflow-auto rounded-md bg-muted p-2 text-xs" aria-label="Raw event payload">
+              <pre className="mt-1 max-h-64 overflow-auto rounded-md bg-muted p-2 text-xs" aria-label={es.timeline.rawPayloadAria}>
                 {JSON.stringify(event.payload, null, 2)}
               </pre>
             ) : null}

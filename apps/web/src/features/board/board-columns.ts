@@ -1,4 +1,6 @@
 import { isTerminal, type TicketSnapshot, type TicketState } from '@ai-delivery-hub/domain';
+import { es } from '@/i18n/es';
+import { ticketStateLabels } from '@/i18n/labels';
 
 export const PHASE1_COLUMNS: readonly TicketState[] = ['received', 'triaging', 'triaged', 'awaiting_owner', 'planning', 'plan_review', 'plan_changes_requested', 'plan_approved'];
 
@@ -22,9 +24,9 @@ export function applyFilters(tickets: readonly TicketSnapshot[], f: BoardFilters
 
 /** Phase 1 states in order, then a collapsed "Closed" column; later-phase states appear only when present. */
 export function buildColumns(tickets: readonly TicketSnapshot[]): BoardColumn[] {
-  const columns: BoardColumn[] = PHASE1_COLUMNS.map((state) => ({ id: state, title: state.replace(/_/g, ' '), tickets: tickets.filter((t) => t.state === state) }));
+  const columns: BoardColumn[] = PHASE1_COLUMNS.map((state) => ({ id: state, title: ticketStateLabels[state], tickets: tickets.filter((t) => t.state === state) }));
   const later = tickets.filter((t) => !isTerminal(t.state) && !PHASE1_COLUMNS.includes(t.state));
-  if (later.length > 0) columns.push({ id: 'later', title: 'later phases', tickets: later });
-  columns.push({ id: 'closed', title: 'closed', tickets: tickets.filter((t) => isTerminal(t.state)) });
+  if (later.length > 0) columns.push({ id: 'later', title: es.board.laterPhasesColumn, tickets: later });
+  columns.push({ id: 'closed', title: es.board.closedColumn, tickets: tickets.filter((t) => isTerminal(t.state)) });
   return columns;
 }

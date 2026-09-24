@@ -36,11 +36,11 @@ describe('InboxContainer', () => {
   it('loads both lists, shows the waiting badge and groups watching without closed tickets', async () => {
     renderApp(<InboxContainer />, { path: '/inbox' });
     await screen.findByText('Mine to approve');
-    expect(screen.getByLabelText('1 waiting on you')).toHaveTextContent('1');
+    expect(screen.getByLabelText('1 esperando tu decisión')).toHaveTextContent('1');
     const waitingTab = screen.getByRole('tabpanel');
     expect(within(waitingTab).queryByText('Someone else plans')).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('tab', { name: /watching/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /en seguimiento/i }));
     await waitFor(() => expect(screen.getByText('Someone else plans')).toBeInTheDocument());
     expect(screen.queryByText('Old one')).not.toBeInTheDocument();
   });
@@ -63,11 +63,11 @@ describe('InboxContainer', () => {
     renderApp(<InboxContainer />, { path: '/inbox' });
     await screen.findByText('Mine to approve');
 
-    await userEvent.click(screen.getByRole('button', { name: /Fetch/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Traer/i }));
 
     await waitFor(() => expect(fetchHandler).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText(/OpenProject: 3 fetched, 1 new, 2 updated/)).toBeInTheDocument();
-    expect(await screen.findByText(/Obsidian: 1 imported, 0 skipped/)).toBeInTheDocument();
+    expect(await screen.findByText(/OpenProject: 3 obtenidos, 1 nuevos, 2 actualizados/)).toBeInTheDocument();
+    expect(await screen.findByText(/Obsidian: 1 importados, 0 omitidos/)).toBeInTheDocument();
   });
 
   it('reports each invalid Obsidian note as its own error toast', async () => {
@@ -82,7 +82,7 @@ describe('InboxContainer', () => {
     );
     renderApp(<InboxContainer />, { path: '/inbox' });
     await screen.findByText('Mine to approve');
-    await userEvent.click(screen.getByRole('button', { name: /Fetch/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Traer/i }));
     expect(await screen.findByText(/bad\.md: title is required/)).toBeInTheDocument();
   });
 });

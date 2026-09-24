@@ -1,4 +1,5 @@
 import { formatDistanceToNowStrict } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 /** `0s`, `45s`, `2m 5s`, `1h 2m`. */
 export function formatDuration(ms: number): string {
@@ -19,7 +20,7 @@ export function formatElapsed(startedAt: string, now: Date): string {
 }
 
 export function formatCost(usd: number | null | undefined): string {
-  if (usd === null || usd === undefined) return 'n/a';
+  if (usd === null || usd === undefined) return 'n/d';
   return `$${usd.toFixed(2)}`;
 }
 
@@ -38,5 +39,10 @@ export function humanize(id: string, capitalize = false): string {
 }
 
 export function relativeTime(iso: string): string {
-  return formatDistanceToNowStrict(new Date(iso), { addSuffix: true });
+  return formatDistanceToNowStrict(new Date(iso), { addSuffix: true, locale: es });
+}
+
+/** `es-CL` absolute date/time formatting, for titles and dialog fields. */
+export function formatAbsolute(iso: string): string {
+  return new Date(iso).toLocaleString('es-CL');
 }

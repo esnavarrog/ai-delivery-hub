@@ -77,7 +77,29 @@ Mode: strict (global config). Runner: `pnpm -r test`, `pnpm typecheck`, `pnpm bu
     riskSignals: ["solo documentación", "sin impacto funcional"]
     category: "chore", riskTier: "low", targetRepo: "backend-parkingapp"  (unchanged, English enum values)
     ```
-- [ ] T3 — Mirror note Spanish text + README (route: delegated)
+- [x] T3 — Mirror note Spanish text + README (route: delegated)
+  - commit c53b137 — `feat(server): Spanish Obsidian mirror marker, backward compatible`
+  - `apps/server/src/adapters/obsidian/mirror-note.ts`: `MIRROR_MARKER` is now the Spanish
+    human-facing text `<!-- hub:notas — todo lo que sigue es tuyo -->`; a private
+    `LEGACY_MIRROR_MARKER` keeps the old English text (`<!-- hub:notes — everything below is
+    yours -->`). `extractUserContent` tries both markers in order, so existing notes keep
+    parsing; every rewrite (`renderMirrorNote`) now writes only the Spanish one.
+    Frontmatter keys/values (key, source, title, state, riskTier, targetRepo, updatedAt,
+    hubUrl) are unchanged — machine-owned, stay English per the decision.
+  - README: new "Output language" subsection under "AI runs" documenting `output.language`;
+    "Web" section notes the UI copy is Spanish via `apps/web/src/i18n/`; Obsidian vault section
+    updated to describe the Spanish marker and backward-compat with the old English one.
+  - Checks: `pnpm --filter @ai-delivery-hub/server test test/unit/obsidian-mirror-note.test.ts
+    test/unit/obsidian-mirror-hook.test.ts test/unit/obsidian-import-mirror-integration.test.ts`
+    — 16/16 pass; full server suite 205 passed/10 skipped; `pnpm --filter
+    @ai-delivery-hub/server typecheck` pass.
+  - RED evidence (two-step, since this is dual-marker backward compat, not a pure copy swap):
+    1. Added `expect(MIRROR_MARKER).toContain('notas')` — failed against the still-English
+       marker (`AssertionError: expected '<!-- hub:notes...' to contain 'notas'`).
+    2. Added a legacy-marker extraction test with a hardcoded old literal; after swapping
+       `MIRROR_MARKER` to Spanish (no compat yet) it failed for real (`expected '<!-- hub:notes
+       ... -->\nOld note text.\n' to be 'Old note text.\n'`), proving the regression it guards;
+       then added `LEGACY_MIRROR_MARKER` fallback and both passed.
 
 ## Acceptance criteria
 - No English user-visible string remains in the web app (spot-check every route).
@@ -88,4 +110,10 @@ Mode: strict (global config). Runner: `pnpm -r test`, `pnpm typecheck`, `pnpm bu
 - Branch `feat/spanish-ui` created from `feat/op-readonly-obsidian` (26a3bca).
 
 ## Next step
-Delegate T1–T3 to one writer.
+All three tasks implemented and committed (T1 d3cd1cd, T2 636c9a1, T3 c53b137). Remaining:
+final full verification run (`pnpm typecheck`, `pnpm -r test`, `pnpm build:web`) and report.
+Note: this dev machine showed high load (`uptime` load avg ~15, vitest worker startup 10-20s
+instead of the usual <1s) during this session, making `apps/web`'s `pnpm -r test` run flaky
+with 5s-timeout failures; the same web suite passes 64/64 reliably in isolation
+(`cd apps/web && pnpm vitest run`) when the machine isn't under that load. Re-run `pnpm -r
+test` when the machine is idle to get a clean combined result.

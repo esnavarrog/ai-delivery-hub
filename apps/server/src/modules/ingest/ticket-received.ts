@@ -20,11 +20,26 @@ export const TicketReceivedPayload = z.object({
 });
 export type TicketReceivedPayload = z.infer<typeof TicketReceivedPayload>;
 
+/**
+ * Upcasts an already-persisted `ticket_received` payload from before manual tickets existed (flat
+ * `opWorkPackageId`/`opProjectId`/`opLockVersion`, no `source`) into the current shape, so old
+ * events keep replaying. New events are always written in the current shape; this only reads.
+ */
+function upcastLegacyReceivedPayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== 'object' || 'source' in payload || !('opWorkPackageId' in payload)) return payload;
+  const { opWorkPackageId, opProjectId, opLockVersion, ...rest } = payload as {
+    opWorkPackageId: number;
+    opProjectId: number;
+    opLockVersion: number;
+  } & Record<string, unknown>;
+  return { ...rest, source: { kind: 'openproject', workPackageId: opWorkPackageId, projectId: opProjectId, lockVersion: opLockVersion } };
+}
+
 export function initialSnapshot(received: TicketEvent): TicketSnapshot {
   if (received.type !== 'ticket_received') {
     throw new Error(`ticket ${received.ticketId}: stream must start with ticket_received, got ${received.type}`);
   }
-  const p = TicketReceivedPayload.parse(received.payload);
+  const p = TicketReceivedPayload.parse(upcastLegacyReceivedPayload(received.payload));
   return {
     id: received.ticketId,
     source: p.source,
@@ -51,7 +66,7 @@ export function projectTicket(events: readonly TicketEvent[]): ProjectedTicket {
   const [first, ...rest] = events;
   if (!first) throw new Error('cannot project an empty stream: ticket_received is missing');
   const initial = initialSnapshot(first);
-  let description = TicketReceivedPayload.parse(first.payload).description;
+  let description = TicketReceivedPayload.parse(upcastLegacyReceivedPayload(first.payload)).description;
   for (const event of rest) {
     if (event.type === 'ticket_updated_from_op') {
       const p = TicketUpdatedFromOpPayload.parse(event.payload);

@@ -175,4 +175,27 @@ describe('RunPlanning', () => {
     expect(outcome).toMatchObject({ kind: 'failed', reason: 'provider_error', message: 'sdk crashed' });
     expect(worktrees.released).toHaveLength(1);
   });
+
+  it('upcasts a legacy triage_completed payload (opWorkPackageId duplicate candidates) before handing it to the planner', async () => {
+    const legacyDuplicate = { ticketId: 't-0', opWorkPackageId: 4700, similarity: 0.9, reason: 'same subject' };
+    const legacyStream: TicketEvent[] = [
+      receivedEvent('t-2'),
+      { ...receivedEvent('t-2'), id: '50000000-0000-4000-8000-000000000002', seq: 2, type: 'triage_started', actor: { kind: 'system', id: 'x' }, payload: {} } as never,
+      {
+        ...receivedEvent('t-2'),
+        id: '50000000-0000-4000-8000-000000000003',
+        seq: 3,
+        type: 'triage_completed',
+        actor: { kind: 'ai', id: 'x' },
+        payload: { ...triageResult(), duplicateCandidates: [legacyDuplicate] },
+      } as never,
+      { ...receivedEvent('t-2'), id: '50000000-0000-4000-8000-000000000004', seq: 4, type: 'owner_required', actor: { kind: 'system', id: 'x' }, payload: {} } as never,
+      { ...receivedEvent('t-2'), id: '50000000-0000-4000-8000-000000000005', seq: 5, type: 'ticket_claimed', actor: { kind: 'dev', id: 'ana' }, payload: { ownerUserId: 'ana' } } as never,
+    ];
+    await store.append('t-2', 0, legacyStream);
+    runner.scriptPlanning({ ok: true, value: plan(), usage: okUsage });
+    await useCase.execute('t-2');
+    const input = runner.planningInputs[0] as PlanningRunnerInput;
+    expect(input.triage?.duplicateCandidates).toEqual([{ ticketId: 't-0', displayKey: 'OP-4700', similarity: 0.9, reason: 'same subject' }]);
+  });
 });

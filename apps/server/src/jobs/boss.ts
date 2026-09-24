@@ -7,12 +7,10 @@ export const QUEUES = {
   ingestPoll: 'ingest.poll',
   triageRun: 'triage.run',
   planningRun: 'planning.run',
-  syncOutbox: 'sync.outbox',
 } as const;
 
 export const TriageJob = z.object({ ticketId: z.string().min(1) });
 export const PlanningJob = z.object({ ticketId: z.string().min(1) });
-export const OutboxJob = z.object({ key: z.string().min(1) });
 
 /** pg-boss schedules are cron expressions, so the poll interval is rounded to whole minutes (min 1). */
 export function pollCron(intervalMs: number): string {
@@ -40,7 +38,6 @@ export interface JobHandlers {
   poll(): Promise<unknown>;
   triage(ticketId: string): Promise<unknown>;
   planning(ticketId: string): Promise<unknown>;
-  outbox(key: string): Promise<unknown>;
 }
 
 export async function registerWorkers(boss: PgBoss, handlers: JobHandlers, options: { pollIntervalMs: number }, log: Logger): Promise<void> {
@@ -66,14 +63,6 @@ export async function registerWorkers(boss: PgBoss, handlers: JobHandlers, optio
     }
   });
 
-  await boss.work<unknown>(QUEUES.syncOutbox, { batchSize: 1 }, async (jobs: Job<unknown>[]) => {
-    for (const job of jobs) {
-      const { key } = OutboxJob.parse(job.data);
-      const result = await handlers.outbox(key);
-      log.info('sync.outbox processed', { key, result });
-    }
-  });
-
   await boss.schedule(QUEUES.ingestPoll, pollCron(options.pollIntervalMs), {}, { singletonKey: 'ingest.poll' });
 }
 
@@ -88,16 +77,5 @@ export class BossPlanningScheduler implements PlanningScheduler {
   constructor(private readonly boss: PgBoss) {}
   async enqueuePlanning(ticketId: string): Promise<void> {
     await this.boss.send(QUEUES.planningRun, { ticketId }, { singletonKey: ticketId });
-  }
-}
-
-export interface OutboxJobQueue {
-  enqueueOutbox(key: string): Promise<void>;
-}
-
-export class BossOutboxQueue implements OutboxJobQueue {
-  constructor(private readonly boss: PgBoss) {}
-  async enqueueOutbox(key: string): Promise<void> {
-    await this.boss.send(QUEUES.syncOutbox, { key }, { singletonKey: key });
   }
 }

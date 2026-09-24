@@ -41,12 +41,6 @@ openproject:
     kind: status_or_prefix
     statusName: Ready for AI
     subjectPrefix: "[AI]"
-  # Ticket state -> OpenProject status name pushed through the sync outbox.
-  statusSync:
-    planning: In specification
-    plan_review: Specified
-    plan_approved: Confirmed
-    rejected: Rejected
 
 # GitHub login -> hub role. Anyone not listed is a `requester`.
 roles:

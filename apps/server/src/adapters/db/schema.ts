@@ -117,26 +117,6 @@ export const repos = pgTable('repos', {
   updatedAt: ts('updated_at').notNull(),
 });
 
-/** Idempotent writes towards OpenProject; `key` is `${ticketId}:${eventSeq}:${kind}`. */
-export const opSyncOutbox = pgTable(
-  'op_sync_outbox',
-  {
-    key: text('key').primaryKey(),
-    ticketId: text('ticket_id').notNull(),
-    eventSeq: integer('event_seq').notNull(),
-    kind: text('kind').notNull(),
-    opWorkPackageId: integer('op_work_package_id').notNull(),
-    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
-    status: text('status').notNull().default('pending'),
-    attempts: integer('attempts').notNull().default(0),
-    lastError: text('last_error'),
-    externalRef: text('external_ref'),
-    createdAt: ts('created_at').notNull().defaultNow(),
-    postedAt: ts('posted_at'),
-  },
-  (t) => [index('op_sync_outbox_status_idx').on(t.status)],
-);
-
 export const approvals = pgTable(
   'approvals',
   {

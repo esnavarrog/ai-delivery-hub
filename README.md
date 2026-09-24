@@ -41,7 +41,6 @@ Integration tests run only when `DATABASE_URL_TEST` is set; unit tests never tou
 | `ANTHROPIC_API_KEY` | see below | — | Claude API key; required when `AI_CREDENTIALS` resolves to `api-key`, otherwise optional (used only to decide `auto`). |
 | `AI_CREDENTIALS` | no | `auto` | Credentials mode for triage + planning: `auto` (`api-key` when `ANTHROPIC_API_KEY` is set, else `subscription`), `subscription` (always use the logged-in Claude Code session; strips `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` from the agent subprocess env), or `api-key` (always use `ANTHROPIC_API_KEY`; startup fails with a clear error if it is empty). **Subscription mode is for personal/dev use only — production and multi-user deployments must use `api-key`** (Anthropic's terms). **Enforced**: when `NODE_ENV=production`, startup fails unless `AI_CREDENTIALS` resolves to `api-key` (`auto` without a key and explicit `subscription` both refuse to start). Outside production, `auto` falling back to `subscription` logs one warn-level line. |
 | `WORKTREES_DIR` | no | `<repo-root>/.worktrees` | Bare git mirrors + detached read-only checkouts for planning (gitignored). |
-| `HUB_PUBLIC_URL` | no | `http://localhost:5173` | Web app URL used in the OpenProject comment `AI plan vN ready for review: <url>/tickets/<id>/plan`. |
 | `CLAUDE_CODE_PATH` | no | SDK lookup | Explicit path to the Claude Code binary used by the Agent SDK. |
 
 `.env` at the repo root is loaded automatically outside production (`apps/server/src/local-env.ts`).
@@ -119,9 +118,9 @@ Auth (Phase 1, development only): send the GitHub login in `X-Hub-User`; the rol
 | GET | `/api/runs?ticketId=` · `/api/runs/:id` | agent runs with tokens, cost, status |
 | POST | `/webhooks/openproject` | signed with `OP_WEBHOOK_SECRET` (`X-OP-Signature`) |
 
-## OpenProject sync
+## OpenProject
 
-The outbox mirrors ticket states to OpenProject statuses (`repos.yaml` → `openproject.statusSync`) and posts comments: an acknowledgement on `ticket_received` and `AI plan vN ready for review: <HUB_PUBLIC_URL>/tickets/<id>/plan — <goal>` on every `plan_version_created`. Writes are idempotent per `(ticket, event seq, kind)`.
+The hub only ever reads from OpenProject (`GET` requests: work packages, listings, activities). It never posts comments or changes a work package's status — `OpenProjectClient` has no write method, and a unit test (`op-client.test.ts`) fails the build if one is added back. Ingest is a manual, on-demand pull (see the "Ingest" section).
 
 ## Authorship and license
 

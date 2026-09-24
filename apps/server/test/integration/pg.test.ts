@@ -5,12 +5,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb, type DbHandle } from '../../src/adapters/db/client.js';
 import { PgEventStore } from '../../src/adapters/db/event-store.js';
 import { runMigrations } from '../../src/adapters/db/migrations.js';
-import { PgOutboxRepository } from '../../src/adapters/db/outbox-repository.js';
 import { PgPlanCommentsRepository, PgPlanVersionsRepository, PgRunsRepository } from '../../src/adapters/db/plan-repositories.js';
 import { PgTicketProjection, ProjectingEventStore } from '../../src/adapters/db/ticket-projection.js';
 import { PgWatermarkStore } from '../../src/adapters/db/watermarks.js';
 import { IngestWorkPackage } from '../../src/modules/ingest/ingest-work-package.js';
-import { outboxRowsForEvent } from '../../src/modules/sync/outbox.js';
 import { FixedClock, SequentialIds } from '../helpers/memory.js';
 
 const url = process.env['DATABASE_URL_TEST'];
@@ -59,7 +57,7 @@ describe.skipIf(!url)('Postgres adapters', () => {
   });
 
   beforeEach(async () => {
-    await handle.db.execute(sql`TRUNCATE tickets, ticket_events, op_sync_outbox, ingest_watermarks, plan_versions, plan_comments, runs`);
+    await handle.db.execute(sql`TRUNCATE tickets, ticket_events, ingest_watermarks, plan_versions, plan_comments, runs`);
   });
 
   describe('PgEventStore', () => {
@@ -153,28 +151,6 @@ describe.skipIf(!url)('Postgres adapters', () => {
       await watermarks.set(15, '2026-09-14T12:00:00.000Z');
       expect(await watermarks.get(15)).toBe('2026-09-14T12:00:00.000Z');
       expect(await watermarks.get(6)).toBeUndefined();
-    });
-  });
-
-  describe('PgOutboxRepository', () => {
-    it('enqueues idempotently by key and tracks posted/failed', async () => {
-      const repo = new PgOutboxRepository(handle.db);
-      const received = event('t-1', 1, 'ticket_received', receivedPayload(4711));
-      const snapshot = {
-        id: 't-1', opWorkPackageId: 4711, opProjectId: 15, opLockVersion: 1, subject: 'S', state: 'received' as const, flags: [],
-        priority: 'normal' as const, planVersionCount: 0, unresolvedCommentCount: 0, createdAt: received.createdAt, updatedAt: received.createdAt,
-      };
-      const rows = outboxRowsForEvent(received, snapshot, { statusSync: {}, hubPublicUrl: 'http://localhost:5173' });
-      expect(await repo.enqueue(rows)).toEqual(['t-1:1:op_comment']);
-      expect(await repo.enqueue(rows)).toEqual([]);
-
-      const stored = await repo.get('t-1:1:op_comment');
-      expect(stored).toMatchObject({ status: 'pending', attempts: 0, kind: 'op_comment', opWorkPackageId: 4711 });
-
-      await repo.markFailed('t-1:1:op_comment', 'boom');
-      expect(await repo.get('t-1:1:op_comment')).toMatchObject({ status: 'failed', attempts: 1, lastError: 'boom' });
-      await repo.markPosted('t-1:1:op_comment', '999');
-      expect(await repo.get('t-1:1:op_comment')).toMatchObject({ status: 'posted', attempts: 2, externalRef: '999' });
     });
   });
 

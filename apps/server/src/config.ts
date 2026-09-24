@@ -18,14 +18,6 @@ export const Env = z.object({
   POLL_INTERVAL_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1000).default(120_000)),
   /** Root for bare mirrors and detached read-only worktrees used by planning runs. */
   WORKTREES_DIR: z.preprocess(emptyToUndefined, nonEmpty.default(DEFAULT_WORKTREES_DIR)),
-  /** Public base URL of the web app, used in OpenProject comments (no trailing slash). */
-  HUB_PUBLIC_URL: z.preprocess(
-    emptyToUndefined,
-    z
-      .url({ protocol: /^https?$/ })
-      .default('http://localhost:5173')
-      .transform((u) => u.replace(/\/+$/, '')),
-  ),
   /** Optional explicit path to the Claude Code binary for the Agent SDK; defaults to the SDK's bundled lookup. */
   CLAUDE_CODE_PATH: z.preprocess(emptyToUndefined, nonEmpty.optional()),
   /** Claude credentials for the model, if set explicitly (an empty string is treated as unset). */

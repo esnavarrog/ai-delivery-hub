@@ -69,8 +69,6 @@ export type TriggerRule = z.infer<typeof TriggerRule>;
 export const OpenProjectPolicy = z.object({
   projectIds: z.array(z.number().int().positive()).min(1),
   trigger: TriggerRule,
-  /** Ticket state -> OpenProject status name. States absent here are not mirrored. */
-  statusSync: z.partialRecord(TicketState, z.string().min(1)),
 });
 export type OpenProjectPolicy = z.infer<typeof OpenProjectPolicy>;
 

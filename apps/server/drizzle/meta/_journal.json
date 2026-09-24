@@ -15,6 +15,13 @@
       "when": 1789420288069,
       "tag": "0001_runs_failure_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790263604398,
+      "tag": "0002_drop_op_sync_outbox",
+      "breakpoints": true
     }
   ]
 }

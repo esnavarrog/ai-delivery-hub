@@ -38,7 +38,6 @@ describe('loadPolicies', () => {
       statusName: 'Ready for AI',
       subjectPrefix: '[AI]',
     });
-    expect(policies.openproject.statusSync.plan_approved).toBe('Confirmed');
     expect(policies.roles['Macstban']).toBe('admin');
     expect(policies.riskPaths.length).toBeGreaterThan(5);
     expect(policies.docs.pillars).toContain('DRAFT');
@@ -76,7 +75,6 @@ budgets:
 openproject:
   projectIds: [1]
   trigger: { kind: prefix, subjectPrefix: "[AI]" }
-  statusSync: {}
 roles: {}
 `,
     });
@@ -100,12 +98,6 @@ roles: {}
     await expect(loadPolicies(dir)).rejects.toThrow(/statusName/);
   });
 
-  it('rejects an unknown ticket state in statusSync', async () => {
-    const dir = await copyPoliciesWith({
-      'repos.yaml': (await loadRawRepos()).replace('plan_approved: Confirmed', 'not_a_state: Confirmed'),
-    });
-    await expect(loadPolicies(dir)).rejects.toBeInstanceOf(PoliciesError);
-  });
 });
 
 async function loadRawRepos(): Promise<string> {

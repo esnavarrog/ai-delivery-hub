@@ -38,12 +38,6 @@ const OpActivityResource = z.object({
   _links: z.object({ user: z.object({ title: z.string().optional() }).optional() }).optional(),
 });
 
-const OpStatusCollection = z.object({
-  _embedded: z.object({ elements: z.array(z.object({ id: z.number().int(), name: z.string() })) }),
-});
-
-const OpCreatedActivity = z.object({ id: z.number().int() });
-
 export interface OpenProjectClientOptions {
   baseUrl: string;
   apiKey: string;
@@ -54,14 +48,13 @@ export interface OpenProjectClientOptions {
 
 const systemClock: Clock = { now: () => new Date(), nowIso: () => new Date().toISOString() };
 
-/** REST v3 client. Auth is HTTP basic with user `apikey`, pagination via `offset`/`pageSize`. */
+/** Read-only REST v3 client (GET only). Auth is HTTP basic with user `apikey`, pagination via `offset`/`pageSize`. */
 export class OpenProjectClient implements OpenProjectPort {
   private readonly baseUrl: string;
   private readonly authHeader: string;
   private readonly fetchImpl: typeof fetch;
   private readonly clock: Clock;
   private readonly pageSize: number;
-  private statusCache: Promise<Map<string, number>> | undefined;
 
   constructor(options: OpenProjectClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
@@ -110,39 +103,9 @@ export class OpenProjectClient implements OpenProjectPort {
     });
   }
 
-  async addComment(workPackageId: number, body: string): Promise<{ commentId: string }> {
-    const created = OpCreatedActivity.parse(
-      await this.request('POST', `/api/v3/work_packages/${workPackageId}/activities`, { comment: { raw: body } }),
-    );
-    return { commentId: String(created.id) };
-  }
-
-  async setStatus(workPackageId: number, statusId: number, lockVersion: number): Promise<WorkPackage> {
-    const body = { lockVersion, _links: { status: { href: `/api/v3/statuses/${statusId}` } } };
-    return toWorkPackage(await this.request('PATCH', `/api/v3/work_packages/${workPackageId}`, body));
-  }
-
-  /** Resolves a status name to its id; the status list is fetched once per client instance. */
-  async statusIdByName(name: string): Promise<number> {
-    this.statusCache ??= this.loadStatuses();
-    const id = (await this.statusCache).get(name);
-    if (id === undefined) throw new Error(`OpenProject status "${name}" does not exist`);
-    return id;
-  }
-
-  private async loadStatuses(): Promise<Map<string, number>> {
-    const raw = OpStatusCollection.parse(await this.request('GET', '/api/v3/statuses'));
-    return new Map(raw._embedded.elements.map((s) => [s.name, s.id]));
-  }
-
-  private async request(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown): Promise<unknown> {
+  private async request(method: 'GET', path: string): Promise<unknown> {
     const headers: Record<string, string> = { authorization: this.authHeader, accept: 'application/hal+json, application/json' };
-    const init: RequestInit = { method, headers };
-    if (body !== undefined) {
-      headers['content-type'] = 'application/json';
-      init.body = JSON.stringify(body);
-    }
-    const res = await this.fetchImpl(`${this.baseUrl}${path}`, init);
+    const res = await this.fetchImpl(`${this.baseUrl}${path}`, { method, headers });
     const payload: unknown = await res.json().catch(() => undefined);
     if (res.status === 409) throw new OpenProjectConflictError(res.status, method, path, payload);
     if (!res.ok) throw new OpenProjectHttpError(res.status, method, path, payload);

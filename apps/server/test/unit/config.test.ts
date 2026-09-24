@@ -16,16 +16,13 @@ describe('loadConfig', () => {
     expect(config.POLICIES_DIR).toMatch(/packages\/policies\/$/);
     expect(config.NODE_ENV).toBe('development');
     expect(config.WORKTREES_DIR).toMatch(/ai-delivery-hub\/\.worktrees$/);
-    expect(config.HUB_PUBLIC_URL).toBe('http://localhost:5173');
     expect(config.CLAUDE_CODE_PATH).toBeUndefined();
   });
 
-  it('accepts the worktree dir, public url and claude binary path overrides and rejects a bad url', () => {
-    const config = loadConfig({ ...valid, WORKTREES_DIR: '/var/hub/worktrees', HUB_PUBLIC_URL: 'https://hub.example.com/', CLAUDE_CODE_PATH: '/usr/local/bin/claude' });
+  it('accepts the worktree dir and claude binary path overrides', () => {
+    const config = loadConfig({ ...valid, WORKTREES_DIR: '/var/hub/worktrees', CLAUDE_CODE_PATH: '/usr/local/bin/claude' });
     expect(config.WORKTREES_DIR).toBe('/var/hub/worktrees');
-    expect(config.HUB_PUBLIC_URL).toBe('https://hub.example.com');
     expect(config.CLAUDE_CODE_PATH).toBe('/usr/local/bin/claude');
-    expect(() => loadConfig({ ...valid, HUB_PUBLIC_URL: 'not a url' })).toThrow(ConfigError);
   });
 
   it('coerces numbers and rejects missing secrets or a non-postgres URL', () => {

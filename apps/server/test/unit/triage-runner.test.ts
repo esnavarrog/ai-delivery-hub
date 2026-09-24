@@ -86,6 +86,7 @@ const policies = {
     steps: { triage: '# Step: Triage\nClassify the ticket.' },
   },
   repos: { 'backend-parkingapp': { stack: 'rails', defaultBranch: 'develop' }, 'libredte-api': { stack: 'fastapi', defaultBranch: 'main' } },
+  output: { language: 'es' as const },
 };
 
 function runner(client: TriageMessagesClient, overrides: Partial<ConstructorParameters<typeof AnthropicTriageRunner>[0]> = {}) {
@@ -128,6 +129,8 @@ describe('AnthropicTriageRunner', () => {
     expect(system).toContain('# Step: Triage');
     expect(system).not.toContain(INJECTION);
     expect(system).not.toContain('Login fails');
+    expect(system).toMatch(/Write every free-text value.*Spanish/is);
+    expect(system).toMatch(/JSON keys.*never translate/is);
 
     expect(params?.messages).toHaveLength(1);
     const user = params!.messages[0]!;

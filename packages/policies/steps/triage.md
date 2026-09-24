@@ -51,3 +51,9 @@ validation error fed back, then the run fails as `invalid_output`.
 - Do not exceed the summary length or copy untrusted ticket text verbatim into fields other
   than what the schema expects.
 - Do not return anything other than the JSON object — no surrounding prose.
+
+## Output language
+
+Free-text fields (`summary`, `riskSignals` descriptions) follow `repos.yaml` -> `output.language`
+(default Spanish). JSON keys, enum values, file paths and repository names always stay exactly
+as the schema requires, regardless of the output language.

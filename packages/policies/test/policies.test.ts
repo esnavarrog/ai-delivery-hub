@@ -39,6 +39,7 @@ describe('loadPolicies', () => {
       subjectPrefix: '[AI]',
     });
     expect(policies.roles['Macstban']).toBe('admin');
+    expect(policies.output.language).toBe('es');
     expect(policies.riskPaths.length).toBeGreaterThan(5);
     expect(policies.docs.pillars).toContain('DRAFT');
     expect(policies.docs.conventions).toContain('Conventional commits');
@@ -89,6 +90,18 @@ roles: {}
     const policies = await loadPolicies(await copyPoliciesWith({ 'repos.yaml': noEffort }));
     expect(policies.models.effort).toEqual({ triage: 'low', planning: 'high' });
     await expect(loadPolicies(await copyPoliciesWith({ 'repos.yaml': raw.replace('triage: low', 'triage: extreme') }))).rejects.toThrow(/effort/);
+  });
+
+  it('defaults output.language to es when the output section is omitted and rejects unknown languages', async () => {
+    const raw = await loadRawRepos();
+    const noOutput = raw.replace(/\n(?:# [^\n]*\n)*output:\n {2}language: es\n/, '\n');
+    expect(noOutput).not.toContain('output:');
+    const policies = await loadPolicies(await copyPoliciesWith({ 'repos.yaml': noOutput }));
+    expect(policies.output).toEqual({ language: 'es' });
+    const withLanguage = `${noOutput}\noutput:\n  language: en\n`;
+    const enPolicies = await loadPolicies(await copyPoliciesWith({ 'repos.yaml': withLanguage }));
+    expect(enPolicies.output.language).toBe('en');
+    await expect(loadPolicies(await copyPoliciesWith({ 'repos.yaml': `${noOutput}\noutput:\n  language: fr\n` }))).rejects.toThrow(/output/);
   });
 
   it('rejects a status trigger without a status name', async () => {

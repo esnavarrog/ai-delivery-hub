@@ -55,3 +55,10 @@ is not done: one retry with the validation error, then `invalid_output`.
 - Do not claim test coverage that was not actually planned into `steps` or `tests`.
 - Do not leave `acceptanceCriteria` as vague adjectives instead of checkable outcomes.
 - Do not compress or omit rollback/acceptance criteria to keep the plan short.
+
+## Output language
+
+Free-text fields (`goal`, `steps[].title`/`detail`, `risks[].description`/`mitigation`,
+`rollback`, `acceptanceCriteria[].given`/`when`/`then`, `openQuestions`) follow `repos.yaml` ->
+`output.language` (default Spanish). JSON keys, enum values, file paths, commands and code
+always stay exactly as the schema requires, regardless of the output language.

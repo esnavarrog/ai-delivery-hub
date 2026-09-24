@@ -10,8 +10,9 @@ import {
   type RunUsage,
   type TriageResult,
 } from '@ai-delivery-hub/domain';
-import type { EffortLevel } from '@ai-delivery-hub/policies';
+import type { EffortLevel, OutputLanguage } from '@ai-delivery-hub/policies';
 import { z } from 'zod';
+import { buildOutputLanguageInstruction } from './output-language.js';
 import { structuredOutputSchema } from './structured-output.js';
 
 /** `query` from `@anthropic-ai/claude-agent-sdk`, narrowed to what the runner consumes; tests inject a generator. */
@@ -26,6 +27,7 @@ export interface PlanningRunnerInput extends PlanningRunInput {
 export interface PlanningPolicies {
   docs: { pillars: string; conventions: string; security: string; steps: { planning: string } };
   repos: Record<string, { stack: string; defaultBranch: string; testCommand: string }>;
+  output: { language: OutputLanguage };
 }
 
 export interface AgentSdkPlanningRunnerOptions {
@@ -251,9 +253,18 @@ export class AgentSdkPlanningRunner implements Pick<AgentRunnerPort, 'runPlannin
       `- HEAD commit (use as baseCommitSha): ${input.baseCommitSha}`,
     ];
     const { pillars, conventions, security, steps } = this.options.policies.docs;
-    return [ROLE_INSTRUCTIONS, '# Target repository', repoLines.join('\n'), '# Step policy', steps.planning, '# Company policies', pillars, conventions, security].join(
-      '\n\n',
-    );
+    return [
+      ROLE_INSTRUCTIONS,
+      buildOutputLanguageInstruction(this.options.policies.output.language),
+      '# Target repository',
+      repoLines.join('\n'),
+      '# Step policy',
+      steps.planning,
+      '# Company policies',
+      pillars,
+      conventions,
+      security,
+    ].join('\n\n');
   }
 
   private buildUserPrompt(input: PlanningRunnerInput): string {

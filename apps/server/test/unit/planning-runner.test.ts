@@ -121,6 +121,7 @@ const policies = {
     steps: { planning: '# Step: Planning\nWrite the plan.' },
   },
   repos: { 'backend-parkingapp': { stack: 'rails', defaultBranch: 'develop', testCommand: 'bundle exec rspec' } },
+  output: { language: 'es' as const },
 };
 
 function runner(query: AgentQuery, overrides: Partial<ConstructorParameters<typeof AgentSdkPlanningRunner>[0]> = {}) {
@@ -213,6 +214,8 @@ describe('AgentSdkPlanningRunner', () => {
     expect(systemText).toMatch(/read-only/i);
     expect(systemText).toContain(SHA_HEAD);
     expect(systemText).not.toContain(INJECTION);
+    expect(systemText).toMatch(/Write every free-text value.*Spanish/is);
+    expect(systemText).toMatch(/JSON keys.*never translate/is);
 
     expect(prompt).toContain(`${UNTRUSTED_OPEN_PREFIX}ticket`);
     expect(prompt).toContain(`${UNTRUSTED_OPEN_PREFIX}plan_comments`);

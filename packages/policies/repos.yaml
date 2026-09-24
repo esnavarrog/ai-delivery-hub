@@ -45,3 +45,8 @@ openproject:
 # GitHub login -> hub role. Anyone not listed is a `requester`.
 roles:
   Macstban: admin
+
+# AI output language: es | en. Applies to free-text values only (summaries, rationale, plan prose);
+# JSON keys, enum values, file paths, commands and code are unaffected.
+output:
+  language: es

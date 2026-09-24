@@ -108,6 +108,7 @@ const policies = {
     steps: { triage: '# Step: Triage\nClassify the ticket.' },
   },
   repos: { 'backend-parkingapp': { stack: 'rails', defaultBranch: 'develop' }, 'libredte-api': { stack: 'fastapi', defaultBranch: 'main' } },
+  output: { language: 'es' as const },
 };
 
 function runner(query: AgentQuery, overrides: Partial<ConstructorParameters<typeof ClaudeCodeTriageRunner>[0]> = {}) {
@@ -182,6 +183,7 @@ describe('ClaudeCodeTriageRunner', () => {
     expect(systemText).toContain('# Step: Triage');
     expect(systemText).not.toContain(INJECTION);
     expect(systemText).not.toContain('Login fails');
+    expect(systemText).toMatch(/Write every free-text value.*Spanish/is);
 
     expect(prompt).toContain(UNTRUSTED_OPEN_PREFIX);
     expect(prompt).toContain(UNTRUSTED_CLOSE);

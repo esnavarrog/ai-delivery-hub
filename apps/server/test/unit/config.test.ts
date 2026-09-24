@@ -5,14 +5,12 @@ const valid = {
   DATABASE_URL: 'postgres://hub:hub@localhost:5433/hub',
   OP_BASE_URL: 'https://op.example.com',
   OP_API_KEY: 'k',
-  OP_WEBHOOK_SECRET: 'a-very-long-webhook-secret',
 };
 
 describe('loadConfig', () => {
   it('applies defaults for optional values', () => {
     const config = loadConfig({ ...valid, POLICIES_DIR: '', PORT: '' });
     expect(config.PORT).toBe(3000);
-    expect(config.POLL_INTERVAL_MS).toBe(120_000);
     expect(config.POLICIES_DIR).toMatch(/packages\/policies\/$/);
     expect(config.NODE_ENV).toBe('development');
     expect(config.WORKTREES_DIR).toMatch(/ai-delivery-hub\/\.worktrees$/);
@@ -25,11 +23,10 @@ describe('loadConfig', () => {
     expect(config.CLAUDE_CODE_PATH).toBe('/usr/local/bin/claude');
   });
 
-  it('coerces numbers and rejects missing secrets or a non-postgres URL', () => {
-    expect(loadConfig({ ...valid, PORT: '8080', POLL_INTERVAL_MS: '60000' })).toMatchObject({ PORT: 8080, POLL_INTERVAL_MS: 60_000 });
+  it('coerces numbers and rejects a missing key or a non-postgres URL', () => {
+    expect(loadConfig({ ...valid, PORT: '8080' })).toMatchObject({ PORT: 8080 });
     expect(() => loadConfig({ ...valid, OP_API_KEY: undefined })).toThrow(ConfigError);
     expect(() => loadConfig({ ...valid, DATABASE_URL: 'mysql://x' })).toThrow(/postgres/);
-    expect(() => loadConfig({ ...valid, OP_WEBHOOK_SECRET: 'short' })).toThrow(/16/);
   });
 });
 

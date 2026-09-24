@@ -12,10 +12,8 @@ export const Env = z.object({
   DATABASE_URL: nonEmpty.refine((u) => /^postgres(ql)?:\/\//.test(u), 'DATABASE_URL must be a postgres:// URL'),
   OP_BASE_URL: z.url({ protocol: /^https?$/ }),
   OP_API_KEY: nonEmpty,
-  OP_WEBHOOK_SECRET: nonEmpty.min(16, 'OP_WEBHOOK_SECRET must be at least 16 characters'),
   POLICIES_DIR: z.preprocess(emptyToUndefined, nonEmpty.default(DEFAULT_POLICIES_DIR)),
   PORT: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(65535).default(3000)),
-  POLL_INTERVAL_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1000).default(120_000)),
   /** Root for bare mirrors and detached read-only worktrees used by planning runs. */
   WORKTREES_DIR: z.preprocess(emptyToUndefined, nonEmpty.default(DEFAULT_WORKTREES_DIR)),
   /** Optional explicit path to the Claude Code binary for the Agent SDK; defaults to the SDK's bundled lookup. */

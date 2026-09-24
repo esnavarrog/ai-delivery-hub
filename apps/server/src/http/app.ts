@@ -13,6 +13,7 @@ import {
   type EnqueuedResponse,
   type ErrorCode,
   type ErrorResponse,
+  type FetchResponse,
   type MeResponse,
   type PlanVersionSummary,
   type RunResponse,
@@ -26,7 +27,6 @@ import { Hono, type Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { isWaitingOn, type HubUser, type TicketCommands } from '../modules/approval/commands.js';
-import { webhookRoutes, type WebhookDeps } from '../modules/ingest/webhook.js';
 import type { PlanCommentsRepository, PlanVersionsRepository, RunsRepository } from '../modules/shared/repositories.js';
 import { ForbiddenError, InvalidCommandError, TicketNotFoundError, TransitionDeniedError } from '../modules/shared/ticket-command.js';
 
@@ -53,7 +53,7 @@ export const HUB_USER_QUERY = 'hub_user';
 
 export interface AppDeps {
   queries: TicketQueries;
-  webhook: WebhookDeps;
+  ingestFetch: { execute(): Promise<FetchResponse> };
   sse?: { pollIntervalMs?: number };
   auth: { roles: Record<string, Role> };
   commands: TicketCommands;
@@ -129,6 +129,12 @@ export function createApp(deps: AppDeps): Hono<Env> {
   app.get('/api/me', (c) => {
     const user = c.get('user');
     const body: MeResponse = { login: user.login, role: user.role };
+    return c.json(body);
+  });
+
+  /** Manual, on-demand ingest: pulls OpenProject and, when configured, imports the Obsidian inbox. */
+  app.post('/api/ingest/fetch', async (c) => {
+    const body: FetchResponse = await deps.ingestFetch.execute();
     return c.json(body);
   });
 
@@ -258,8 +264,6 @@ export function createApp(deps: AppDeps): Hono<Env> {
     const body: RunResponse = { run };
     return c.json(body);
   });
-
-  app.route('/webhooks', webhookRoutes(deps.webhook));
 
   return app;
 }

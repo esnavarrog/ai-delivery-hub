@@ -18,8 +18,8 @@ import { createApp } from './http/app.js';
 import { BossPlanningScheduler, BossTriageScheduler, createBoss, registerWorkers, type Logger } from './jobs/boss.js';
 import { loadLocalEnv } from './local-env.js';
 import { TicketCommands } from './modules/approval/commands.js';
+import { RunIngestFetch } from './modules/ingest/fetch.js';
 import { IngestWorkPackage } from './modules/ingest/ingest-work-package.js';
-import { pollOnce } from './modules/ingest/poll.js';
 import { RunPlanning } from './modules/planning/run-planning.js';
 import { RunTriage } from './modules/triage/run-triage.js';
 
@@ -83,21 +83,20 @@ async function main(): Promise<void> {
   const runTriage = new RunTriage({ eventStore, ids, clock, runner: triageRunner, runs, tickets: projection, planning: planningScheduler, policies });
   const runPlanning = new RunPlanning({ eventStore, ids, clock, runner: planningRunner, runs, planVersions, planComments, worktrees, policies });
   const commands = new TicketCommands({ eventStore, ids, clock, planVersions, planComments, triage: triageScheduler, planning: planningScheduler, allowedRepos: Object.keys(policies.repos) });
+  const ingestFetch = new RunIngestFetch({ op, watermarks, ingest, projectIds: policies.openproject.projectIds, clock });
 
   await registerWorkers(
     boss,
     {
-      poll: () => pollOnce({ op, watermarks, ingest, projectIds: policies.openproject.projectIds, clock }),
       triage: (ticketId) => runTriage.execute(ticketId),
       planning: (ticketId) => runPlanning.execute(ticketId),
     },
-    { pollIntervalMs: config.POLL_INTERVAL_MS },
     log,
   );
 
   const app = createApp({
     queries: projection,
-    webhook: { secret: config.OP_WEBHOOK_SECRET, ingest, op },
+    ingestFetch,
     auth: { roles: policies.roles },
     commands,
     planVersions,

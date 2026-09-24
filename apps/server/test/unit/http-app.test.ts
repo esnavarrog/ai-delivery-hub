@@ -1,9 +1,8 @@
-import { createHmac } from 'node:crypto';
-import type { TicketEvent, WorkPackage } from '@ai-delivery-hub/domain';
-import { describe, expect, it } from 'vitest';
+import type { FetchResponse } from '@ai-delivery-hub/contracts';
+import type { TicketEvent } from '@ai-delivery-hub/domain';
+import { describe, expect, it, vi } from 'vitest';
 import { HUB_USER_HEADER, createApp } from '../../src/http/app.js';
 import { TicketCommands } from '../../src/modules/approval/commands.js';
-import { IngestWorkPackage } from '../../src/modules/ingest/ingest-work-package.js';
 import { SHA_HEAD, plan, triageResult } from '../helpers/fake-agent-runner.js';
 import {
   FixedClock,
@@ -17,7 +16,6 @@ import {
   receivedEvent,
 } from '../helpers/memory.js';
 
-const secret = 'whsec';
 const roles = { ana: 'dev', bob: 'dev', lea: 'lead', Macstban: 'admin', req: 'requester' } as const;
 
 const json = async <T = Record<string, any>>(res: Response): Promise<T> => (await res.json()) as T;
@@ -49,9 +47,7 @@ function planReview(ticketId: string, owner = 'ana', wp = 4712): TicketEvent[] {
   ];
 }
 
-const wp: WorkPackage = { id: 4711, subject: '[AI] thing', description: { raw: 'd' }, status: 'New', type: 'Bug', project: { id: 15, name: 'P' }, lockVersion: 1, updatedAt: '2026-09-14T09:00:00Z' };
-
-async function harness() {
+async function harness(ingestFetch?: { execute(): Promise<FetchResponse> }) {
   const store = new MemoryEventStore();
   const versions = new MemoryPlanVersionsRepository();
   const comments = new MemoryPlanCommentsRepository(versions);
@@ -60,14 +56,6 @@ async function harness() {
   const planningQueue: string[] = [];
   const ids = new SequentialIds();
   const clock = new FixedClock();
-  const ingest = new IngestWorkPackage({
-    eventStore: store,
-    ticketIndex: new MemoryTicketIndex(store),
-    triage: { enqueueTriage: async (id) => void triageQueue.push(id) },
-    ids,
-    clock,
-    trigger: { kind: 'prefix', subjectPrefix: '[AI]' },
-  });
   const commands = new TicketCommands({
     eventStore: store,
     ids,
@@ -78,10 +66,10 @@ async function harness() {
     planning: { enqueuePlanning: async (id) => void planningQueue.push(id) },
     allowedRepos: ['backend-parkingapp', 'libredte-api'],
   });
-  const fetched: number[] = [];
+  const defaultFetch: FetchResponse = { openproject: { fetched: 0, created: 0, updated: 0 }, obsidian: null };
   const app = createApp({
     queries: new MemoryTicketQueries(store),
-    webhook: { secret, ingest, op: { getWorkPackage: async (id) => (fetched.push(id), wp) } },
+    ingestFetch: ingestFetch ?? { execute: async () => defaultFetch },
     sse: { pollIntervalMs: 5 },
     auth: { roles },
     commands,
@@ -94,7 +82,7 @@ async function harness() {
   await store.append('r', 0, planReview('r', 'ana', 4712));
   await versions.insert({ id: 'v-1', ticketId: 'r', version: 1, plan: plan(), renderedMarkdown: '# Plan', baseCommitSha: SHA_HEAD, status: 'review', createdAt: '2026-09-14T11:06:00.000Z' });
   await runs.insert({ id: 'run-1', ticketId: 'r', kind: 'planning', status: 'succeeded', model: 'claude-opus-5', inputTokens: 10, outputTokens: 5, costUsd: 0.1, budgetTokens: 150_000, startedAt: '2026-09-14T11:05:00.000Z', endedAt: '2026-09-14T11:06:00.000Z', failureReason: null, errorMessage: null });
-  return { app, store, versions, comments, runs, triageQueue, planningQueue, fetched };
+  return { app, store, versions, comments, runs, triageQueue, planningQueue };
 }
 
 describe('HTTP app', () => {
@@ -294,28 +282,28 @@ describe('HTTP app', () => {
     expect(store.types('a')).toHaveLength(4);
   });
 
-  describe('POST /webhooks/openproject', () => {
-    const body = JSON.stringify({ action: 'work_package:updated', work_package: { id: 4711, subject: 'attacker-controlled' } });
-    const sign = (b: string, s = secret) => `sha1=${createHmac('sha1', s).update(b).digest('hex')}`;
-
-    it('rejects a missing or invalid signature without touching OpenProject', async () => {
-      const { app, fetched } = await harness();
-      expect((await app.request('/webhooks/openproject', { method: 'POST', body })).status).toBe(401);
-      expect((await app.request('/webhooks/openproject', { method: 'POST', body, headers: { 'X-OP-Signature': sign(body, 'wrong') } })).status).toBe(401);
-      expect(fetched).toEqual([]);
-    });
-
-    it('fetches the work package fresh and ingests it', async () => {
-      const { app, fetched } = await harness();
-      const res = await app.request('/webhooks/openproject', { method: 'POST', body, headers: { 'X-OP-Signature': sign(body), 'content-type': 'application/json' } });
-      expect(res.status).toBe(202);
-      expect(fetched).toEqual([4711]);
-    });
-
-    it('returns 400 on a body without a work package id', async () => {
+  describe('POST /api/ingest/fetch', () => {
+    it('requires auth like every other /api route', async () => {
       const { app } = await harness();
-      const bad = JSON.stringify({ action: 'nope' });
-      expect((await app.request('/webhooks/openproject', { method: 'POST', body: bad, headers: { 'X-OP-Signature': sign(bad) } })).status).toBe(400);
+      expect((await app.request('/api/ingest/fetch', { method: 'POST' })).status).toBe(401);
+    });
+
+    it('runs the configured ingest and returns its summary', async () => {
+      const execute = vi.fn().mockResolvedValue({
+        openproject: { fetched: 3, created: 1, updated: 2 },
+        obsidian: { imported: 1, skipped: 0, errors: [] },
+      } satisfies FetchResponse);
+      const { app } = await harness({ execute });
+      const res = await app.request('/api/ingest/fetch', post('ana'));
+      expect(res.status).toBe(200);
+      expect(await json(res)).toEqual({ openproject: { fetched: 3, created: 1, updated: 2 }, obsidian: { imported: 1, skipped: 0, errors: [] } });
+      expect(execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports obsidian:null when the vault import is not configured', async () => {
+      const { app } = await harness();
+      const res = await app.request('/api/ingest/fetch', post('ana'));
+      expect((await json(res)).obsidian).toBeNull();
     });
   });
 });

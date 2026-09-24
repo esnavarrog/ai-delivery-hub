@@ -163,3 +163,29 @@ export type CommentResponse = z.infer<typeof CommentResponse>;
 
 export const EnqueuedResponse = z.object({ ticket: TicketSnapshot, enqueued: RunKind });
 export type EnqueuedResponse = z.infer<typeof EnqueuedResponse>;
+
+// ---- Ingest -----------------------------------------------------------------
+
+export const OpenProjectFetchSummary = z.object({
+  fetched: z.number().int().min(0),
+  created: z.number().int().min(0),
+  updated: z.number().int().min(0),
+});
+export type OpenProjectFetchSummary = z.infer<typeof OpenProjectFetchSummary>;
+
+export const ObsidianImportError = z.object({ file: z.string().min(1), message: z.string().min(1) });
+export type ObsidianImportError = z.infer<typeof ObsidianImportError>;
+
+export const ObsidianImportSummary = z.object({
+  imported: z.number().int().min(0),
+  skipped: z.number().int().min(0),
+  errors: z.array(ObsidianImportError),
+});
+export type ObsidianImportSummary = z.infer<typeof ObsidianImportSummary>;
+
+/** Response of `POST /api/ingest/fetch`. `obsidian` is `null` when `OBSIDIAN_VAULT_DIR` is unset. */
+export const FetchResponse = z.object({
+  openproject: OpenProjectFetchSummary,
+  obsidian: ObsidianImportSummary.nullable(),
+});
+export type FetchResponse = z.infer<typeof FetchResponse>;

@@ -2,7 +2,6 @@ import type { WorkPackage } from '@ai-delivery-hub/domain';
 import { describe, expect, it } from 'vitest';
 import { IngestWorkPackage } from '../../src/modules/ingest/ingest-work-package.js';
 import { pollOnce, type WatermarkStore } from '../../src/modules/ingest/poll.js';
-import { pollCron } from '../../src/jobs/boss.js';
 import { FixedClock, MemoryEventStore, MemoryTicketIndex, SequentialIds } from '../helpers/memory.js';
 
 class MemoryWatermarks implements WatermarkStore {
@@ -59,14 +58,5 @@ describe('pollOnce', () => {
     expect(await watermarks.get(15)).toBe('2026-09-14T12:00:00.000Z');
     expect(await watermarks.get(6)).toBe('2026-09-14T12:00:00.000Z');
     expect(store.all()).toHaveLength(2);
-  });
-});
-
-describe('pollCron', () => {
-  it('rounds the interval to whole minutes', () => {
-    expect(pollCron(120_000)).toBe('*/2 * * * *');
-    expect(pollCron(1_000)).toBe('* * * * *');
-    expect(pollCron(59_000)).toBe('* * * * *');
-    expect(pollCron(7_200_000)).toBe('0 */2 * * *');
   });
 });

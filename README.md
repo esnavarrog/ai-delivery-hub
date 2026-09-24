@@ -33,11 +33,9 @@ Integration tests run only when `DATABASE_URL_TEST` is set; unit tests never tou
 | --- | --- | --- | --- |
 | `DATABASE_URL` | yes | — | Postgres connection (`postgres://hub:hub@localhost:5433/hub` locally). |
 | `DATABASE_URL_TEST` | tests only | — | Enables the Postgres integration tests. |
-| `OP_BASE_URL`, `OP_API_KEY` | yes | — | OpenProject REST v3 (basic auth `apikey:<key>`). |
-| `OP_WEBHOOK_SECRET` | yes | — | HMAC secret of the OpenProject webhook (min 16 chars). |
+| `OP_BASE_URL`, `OP_API_KEY` | yes | — | OpenProject REST v3, read-only (basic auth `apikey:<key>`). |
 | `POLICIES_DIR` | no | `packages/policies` | Folder with `repos.yaml`, `risk-paths.yaml`, `*.md`. |
 | `PORT` | no | `3000` | HTTP port (`.env` uses 3100). |
-| `POLL_INTERVAL_MS` | no | `120000` | OpenProject polling fallback (rounded to whole minutes). |
 | `ANTHROPIC_API_KEY` | see below | — | Claude API key; required when `AI_CREDENTIALS` resolves to `api-key`, otherwise optional (used only to decide `auto`). |
 | `AI_CREDENTIALS` | no | `auto` | Credentials mode for triage + planning: `auto` (`api-key` when `ANTHROPIC_API_KEY` is set, else `subscription`), `subscription` (always use the logged-in Claude Code session; strips `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` from the agent subprocess env), or `api-key` (always use `ANTHROPIC_API_KEY`; startup fails with a clear error if it is empty). **Subscription mode is for personal/dev use only — production and multi-user deployments must use `api-key`** (Anthropic's terms). **Enforced**: when `NODE_ENV=production`, startup fails unless `AI_CREDENTIALS` resolves to `api-key` (`auto` without a key and explicit `subscription` both refuse to start). Outside production, `auto` falling back to `subscription` logs one warn-level line. |
 | `WORKTREES_DIR` | no | `<repo-root>/.worktrees` | Bare git mirrors + detached read-only checkouts for planning (gitignored). |
@@ -105,6 +103,7 @@ Auth (Phase 1, development only): send the GitHub login in `X-Hub-User`; the rol
 | GET | `/api/tickets/:id` | snapshot, events, latest plan summary, unresolved comment count, latest run |
 | GET | `/api/tickets/:id/plan` | all plan versions (structured + markdown) and comments |
 | GET | `/api/tickets/:id/events/stream` | SSE `ticket_event` messages, `?after=<seq>` |
+| POST | `/api/ingest/fetch` | manual, on-demand ingest (see "Ingest" below); `{ openproject: { fetched, created, updated }, obsidian: { imported, skipped, errors } \| null }` |
 | POST | `/api/tickets/:id/claim` | dev claims; enqueues planning |
 | POST | `/api/tickets/:id/confirm-triage` | body `{ category?, riskTier?, targetRepo? }` |
 | POST | `/api/tickets/:id/request-changes` | body `{ reason? }`; needs a reason or an unresolved comment |
@@ -116,7 +115,10 @@ Auth (Phase 1, development only): send the GitHub login in `X-Hub-User`; the rol
 | POST | `/api/tickets/:id/comments` | body `{ sectionPath, body, planVersionId? }` → `201 { ticket, comment }` |
 | POST | `/api/tickets/:id/comments/:commentId/resolve` | |
 | GET | `/api/runs?ticketId=` · `/api/runs/:id` | agent runs with tokens, cost, status |
-| POST | `/webhooks/openproject` | signed with `OP_WEBHOOK_SECRET` (`X-OP-Signature`) |
+
+## Ingest
+
+Nothing is ingested automatically: there is no OpenProject webhook and no scheduled poll. `POST /api/ingest/fetch` is the only intake path, driven by the "Fetch" button in the web UI. One call pulls every configured OpenProject project (`pollOnce`, watermark-based, same idempotent ingest as before) and, when `OBSIDIAN_VAULT_DIR` is set, imports the Obsidian inbox (see "Obsidian vault" below). A call made while a fetch is already running reuses that same in-flight run and returns its summary instead of starting a second pass or answering `409`.
 
 ## OpenProject
 

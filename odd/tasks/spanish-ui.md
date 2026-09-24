@@ -48,7 +48,35 @@ Mode: strict (global config). Runner: `pnpm -r test`, `pnpm typecheck`, `pnpm bu
     esteban; add it to repos.yaml roles", "plan has 1 unresolved comment(s)") are left in English —
     out of the mapped T1 file scope (they live in apps/server validation/domain code, not listed in
     the assignment's file map); flagged as an open question below.
-- [ ] T2 — AI output language es via policies (route: delegated)
+- [x] T2 — AI output language es via policies (route: delegated)
+  - commit 636c9a1 — `feat(policies,server): AI output language setting + prompt instruction`
+  - `packages/policies/src/schema.ts`: `OutputLanguage` enum (`es`|`en`) + `OutputPolicy`
+    (`language` defaults `es`), added to `ReposFile.output` via `.prefault({})`.
+    `packages/policies/repos.yaml`: `output: language: es`.
+  - `apps/server/src/adapters/agent/output-language.ts` (new): `buildOutputLanguageInstruction`
+    shared by both triage runners (via `triage-prompt.ts`'s `buildTriageSystemPrompt`, used by
+    both `AnthropicTriageRunner` and `ClaudeCodeTriageRunner`) and `AgentSdkPlanningRunner`.
+    Removed the old hardcoded "in English" in `TRIAGE_ROLE_INSTRUCTIONS`.
+  - `steps/triage.md` and `steps/planning.md`: new "Output language" section.
+  - Checks: `pnpm -r typecheck` pass; `pnpm --filter @ai-delivery-hub/server test` 26 files/203
+    tests pass (incl. new `output-language.test.ts` and new language-instruction assertions in
+    triage-runner/claude-code-triage-runner/planning-runner tests); `pnpm --filter
+    @ai-delivery-hub/policies test` 9 tests pass (incl. new default/override/rejection test).
+  - RED evidence: added `output.language` assertions to policies.test.ts and
+    `expect(policies.output.language).toBe('es')` before the schema had the field (`Cannot read
+    properties of undefined`); added the three runner fixtures without `output` and re-ran to
+    see `TypeError: Cannot read properties of undefined (reading 'language')` from
+    `buildTriageSystemPrompt`/`buildSystemPrompt`, then implemented.
+  - Smoke: `pnpm --filter @ai-delivery-hub/server smoke:triage` (subscription mode, developer
+    logged in with `claude`) — real Claude Code run, ok:true, Spanish prose with unchanged
+    English JSON keys/enum values:
+    ```
+    summary: "Se solicita corregir un error tipográfico en el archivo README.md, en la sección
+      de inicio, donde aparece \"recieve\" en lugar de \"receive\". Es un cambio únicamente de
+      documentación, sin impacto funcional ni en contratos de API."
+    riskSignals: ["solo documentación", "sin impacto funcional"]
+    category: "chore", riskTier: "low", targetRepo: "backend-parkingapp"  (unchanged, English enum values)
+    ```
 - [ ] T3 — Mirror note Spanish text + README (route: delegated)
 
 ## Acceptance criteria

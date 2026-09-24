@@ -5,6 +5,7 @@ import { ActorAvatar } from '@/ui/actor-avatar';
 import { FlagChips } from '@/ui/flag-chips';
 import { RelativeTime } from '@/ui/relative-time';
 import { RiskBadge } from '@/ui/risk-badge';
+import { SourceBadge } from '@/ui/source-badge';
 import { StateChip } from '@/ui/state-chip';
 
 export function TicketCard({ ticket, selected, onOpen }: { ticket: TicketSnapshot; selected: boolean; onOpen: (ticket: TicketSnapshot) => void }) {
@@ -21,6 +22,7 @@ export function TicketCard({ ticket, selected, onOpen }: { ticket: TicketSnapsho
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <SourceBadge source={ticket.source} />
             <span className="font-mono">{ticket.displayKey}</span>
             {ticket.priority !== 'normal' ? <span className="capitalize">{ticket.priority}</span> : null}
           </div>

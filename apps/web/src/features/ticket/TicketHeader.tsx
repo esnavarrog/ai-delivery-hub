@@ -5,6 +5,7 @@ import { workPackageUrl } from '@/app/config';
 import { FlagChips } from '@/ui/flag-chips';
 import { RelativeTime } from '@/ui/relative-time';
 import { RiskBadge } from '@/ui/risk-badge';
+import { SourceBadge } from '@/ui/source-badge';
 import { StateChip } from '@/ui/state-chip';
 
 export function TicketHeader({ ticket, actions }: { ticket: TicketSnapshot; actions?: ReactNode }) {
@@ -14,6 +15,7 @@ export function TicketHeader({ ticket, actions }: { ticket: TicketSnapshot; acti
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <SourceBadge source={ticket.source} />
             {opUrl ? (
               <a href={opUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono hover:text-foreground hover:underline" aria-label={`Open work package ${ticket.displayKey} in OpenProject`}>
                 {ticket.displayKey}

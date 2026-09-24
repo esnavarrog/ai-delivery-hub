@@ -20,4 +20,18 @@ describe('InboxList', () => {
     expect(screen.getByText('plan review')).toBeInTheDocument();
     expect(screen.getByText('needs info')).toBeInTheDocument();
   });
+
+  it('shows an OP source badge for an OpenProject ticket and a Manual badge for a manual ticket', () => {
+    render(
+      <InboxList
+        tickets={[ticket({ id: 't-op' }), ticket({ id: 't-manual', source: { kind: 'manual', key: 'M-0001' }, displayKey: 'M-0001' })]}
+        selectedIndex={0}
+        onOpen={vi.fn()}
+        emptyTitle="x"
+      />,
+    );
+    expect(screen.getByLabelText('Source: OpenProject')).toHaveTextContent('OP');
+    expect(screen.getByLabelText('Source: Manual')).toHaveTextContent('Manual');
+    expect(screen.getByText('M-0001')).toBeInTheDocument();
+  });
 });

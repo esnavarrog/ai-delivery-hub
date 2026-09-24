@@ -1,8 +1,10 @@
 import type { TicketSnapshot } from '@ai-delivery-hub/domain';
 import { useNavigate } from '@tanstack/react-router';
+import { RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useTicketList } from '@/app/queries';
+import { useIngestFetch, useTicketList } from '@/app/queries';
 import { groupInbox } from '@/lib/inbox';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { EmptyState } from '@/ui/empty-state';
@@ -17,6 +19,7 @@ export function InboxContainer() {
   const navigate = useNavigate();
   const all = useTicketList();
   const waiting = useTicketList({ waitingOn: 'me' });
+  const ingestFetch = useIngestFetch();
   const [tab, setTab] = useState<Tab>('waiting');
   const [selected, setSelected] = useState(0);
 
@@ -59,7 +62,16 @@ export function InboxContainer() {
 
   return (
     <div>
-      <PageHeader title="Inbox" description="Decisions that need you first, then everything you follow. Use j / k to move and Enter to open." />
+      <PageHeader
+        title="Inbox"
+        description="Decisions that need you first, then everything you follow. Use j / k to move and Enter to open."
+        actions={
+          <Button variant="outline" onClick={() => ingestFetch.mutate()} disabled={ingestFetch.isPending} aria-label="Fetch: pull OpenProject and import the Obsidian inbox">
+            <RefreshCw className={cn('size-4', ingestFetch.isPending && 'animate-spin')} aria-hidden="true" />
+            {ingestFetch.isPending ? 'Fetching…' : 'Fetch'}
+          </Button>
+        }
+      />
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <TabsList aria-label="Inbox tabs">
           <TabsTrigger value="waiting">

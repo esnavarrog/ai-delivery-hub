@@ -9,6 +9,7 @@ import { EmptyState } from '@/ui/empty-state';
 import { PageHeader } from '@/ui/page-header';
 import { RiskBadge } from '@/ui/risk-badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { SourceBadge } from '@/ui/source-badge';
 import { Skeleton } from '@/ui/skeleton';
 import { applyFilters, buildColumns, type BoardFilters } from './board-columns';
 
@@ -93,7 +94,10 @@ export function BoardContainer() {
                     className="flex flex-col gap-1 rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:border-primary/40"
                     aria-label={`Open ticket ${t.displayKey} ${t.subject}`}
                   >
-                    <span className="font-mono text-xs text-muted-foreground">{t.displayKey}</span>
+                    <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                      <SourceBadge source={t.source} />
+                      {t.displayKey}
+                    </span>
                     <span className="line-clamp-2 font-medium">{t.subject}</span>
                     <span className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                       <RiskBadge tier={t.riskTier} />

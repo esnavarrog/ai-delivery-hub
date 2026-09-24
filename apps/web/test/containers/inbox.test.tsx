@@ -1,9 +1,9 @@
-import type { MeResponse, TicketListResponse } from '@ai-delivery-hub/contracts';
+import type { FetchResponse, MeResponse, TicketListResponse } from '@ai-delivery-hub/contracts';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setCurrentLogin } from '@/app/current-user';
 import { InboxContainer } from '@/features/inbox/InboxContainer';
 import { ticket } from '../fixtures/ticket';
@@ -49,5 +49,40 @@ describe('InboxContainer', () => {
     server.use(http.get('*/api/tickets', () => HttpResponse.json({ error: { code: 'unauthorized', message: 'unknown user esteban; add it to repos.yaml roles' } }, { status: 401 })));
     renderApp(<InboxContainer />, { path: '/inbox' });
     expect(await screen.findByText(/unknown user esteban/)).toBeInTheDocument();
+  });
+
+  it('Fetch button calls POST /api/ingest/fetch and toasts the summary, refetching the lists', async () => {
+    const fetchHandler = vi.fn();
+    server.use(
+      http.post('*/api/ingest/fetch', () => {
+        fetchHandler();
+        const body: FetchResponse = { openproject: { fetched: 3, created: 1, updated: 2 }, obsidian: { imported: 1, skipped: 0, errors: [] } };
+        return HttpResponse.json(body);
+      }),
+    );
+    renderApp(<InboxContainer />, { path: '/inbox' });
+    await screen.findByText('Mine to approve');
+
+    await userEvent.click(screen.getByRole('button', { name: /Fetch/i }));
+
+    await waitFor(() => expect(fetchHandler).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/OpenProject: 3 fetched, 1 new, 2 updated/)).toBeInTheDocument();
+    expect(await screen.findByText(/Obsidian: 1 imported, 0 skipped/)).toBeInTheDocument();
+  });
+
+  it('reports each invalid Obsidian note as its own error toast', async () => {
+    server.use(
+      http.post('*/api/ingest/fetch', () => {
+        const body: FetchResponse = {
+          openproject: { fetched: 0, created: 0, updated: 0 },
+          obsidian: { imported: 0, skipped: 1, errors: [{ file: 'bad.md', message: 'title is required' }] },
+        };
+        return HttpResponse.json(body);
+      }),
+    );
+    renderApp(<InboxContainer />, { path: '/inbox' });
+    await screen.findByText('Mine to approve');
+    await userEvent.click(screen.getByRole('button', { name: /Fetch/i }));
+    expect(await screen.findByText(/bad\.md: title is required/)).toBeInTheDocument();
   });
 });

@@ -7,6 +7,7 @@ import type {
   DecisionBody,
   DuplicateBody,
   EnqueuedResponse,
+  FetchResponse,
   FlagBody,
   MeResponse,
   RequestChangesBody,
@@ -70,6 +71,30 @@ export function useRuns(ticketId?: string) {
     queryFn: () => api.get<RunsResponse>(`/api/runs${qs({ ticketId })}`),
     enabled: login.length > 0,
     refetchInterval: 10_000,
+  });
+}
+
+/** One-line summary of a fetch, for the toast. */
+export function describeFetchSummary(summary: FetchResponse): string {
+  const parts = [`OpenProject: ${summary.openproject.fetched} fetched, ${summary.openproject.created} new, ${summary.openproject.updated} updated.`];
+  if (summary.obsidian) {
+    const errorNote = summary.obsidian.errors.length > 0 ? `, ${summary.obsidian.errors.length} invalid` : '';
+    parts.push(`Obsidian: ${summary.obsidian.imported} imported, ${summary.obsidian.skipped} skipped${errorNote}.`);
+  }
+  return parts.join(' ');
+}
+
+/** Runs the manual ingest (`POST /api/ingest/fetch`): OpenProject pull + Obsidian inbox import when configured. */
+export function useIngestFetch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<FetchResponse>('/api/ingest/fetch'),
+    onSuccess: async (summary) => {
+      toast.success(describeFetchSummary(summary));
+      for (const err of summary.obsidian?.errors ?? []) toast.error(`${err.file}: ${err.message}`);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['ticket'] }), queryClient.invalidateQueries({ queryKey: ['tickets'] })]);
+    },
+    onError: (err) => toast.error(describeError(err)),
   });
 }
 

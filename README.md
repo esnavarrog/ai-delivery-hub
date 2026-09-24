@@ -79,7 +79,7 @@ pnpm --filter @ai-delivery-hub/web test
 pnpm build:web                    # tsc --noEmit + vite build -> apps/web/dist
 ```
 
-Screens: `/inbox` (tabs "Waiting on you" from `?waitingOn=me` and "Watching"; `j`/`k`/`Enter`), `/board` (kanban by state, filters repo/owner/risk), `/tickets/:id` (timeline as sentences with live SSE updates and a 5 s polling fallback; one decision card per state and role; `a` approve, `r` request changes), `/tickets/:id/plan` (versions, inline section comments, resolve, compare with the previous version), `/runs` (tokens, cost, duration, failure reason).
+Screens: `/inbox` (tabs "Waiting on you" from `?waitingOn=me` and "Watching"; `j`/`k`/`Enter`; a "Fetch" button runs `POST /api/ingest/fetch` and toasts the summary), `/board` (kanban by state, filters repo/owner/risk), `/tickets/:id` (timeline as sentences with live SSE updates and a 5 s polling fallback; one decision card per state and role; `a` approve, `r` request changes), `/tickets/:id/plan` (versions, inline section comments, resolve, compare with the previous version), `/runs` (tokens, cost, duration, failure reason). The inbox, board and ticket header each show a source badge (`OP` / `Manual`) next to the ticket's display key.
 
 Auth is the Phase 1 development header: the header shows a clearly labelled "dev auth" switcher; the chosen login is persisted in `localStorage` and sent as `X-Hub-User` (and `?hub_user=` on the SSE stream). Environment (`apps/web/.env.example`):
 

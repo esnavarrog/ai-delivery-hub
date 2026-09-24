@@ -54,5 +54,11 @@ Mode: strict (source: global orchestrator config). Runner: `pnpm --filter @ai-de
 - Branch `feat/op-readonly-obsidian` created from `feat/ai-credentials-modes` (a5948f8).
 - `.env.example` is outside this session's write permissions (Edit and Bash writes to it are both denied by the sandbox). README's Environment table was updated instead for every env var added/removed by this feature; `.env.example` itself is stale (still lists `HUB_PUBLIC_URL`/`OP_WEBHOOK_SECRET`/`POLL_INTERVAL_MS` and will not list the new `OBSIDIAN_*` vars). Flagged for the user to update by hand or in a follow-up session with write access.
 
+## Review record
+- Slice 1 (T1+T2, base a5948f8..240dd2b): high, consent granted, 4 lenses, approved + acknowledged. Follow-ups: persisted pg-boss `ingest.poll` schedule never unscheduled (R3-001); GET-only guard test overclaims (R2-001/R3-003); dead 409 conflict mapping (R2-002); fetch failure path untested (R3-002).
+- Slice 2 (T3, base 240dd2b..26522db): high, consent granted, correction_required (BLOCKER/CRITICAL: 0003 NOT NULL without backfill; legacy ticket_received/triage payloads not upcast). Bounded correction a49bc8f (122 lines) cherry-picked as `ac87650`; recovered as lineage review-slice2-recovered-1 (maintainer-authorized), approved + acknowledged. Follow-ups: triage upcast only in planning, web card path not upcast (R3/R4); manual projection row untested; CreateManualTicket not retry-safe.
+- Slice 3 (T4–T6 + correction, base 26522db..ac87650): medium, consent granted, 1 lens, approved + acknowledged. Follow-ups: mirror read-modify-write not serialized; inbox note moved before ticket append (crash orphan); rollback after successful append can duplicate.
+- Post-cherry-pick checks on the branch: `pnpm typecheck` clean; `pnpm -r test` 423 passed, 10 skipped.
+
 ## Next step
 All six tasks done. Remaining before shipping: apply migrations 0002/0003 to any environment beyond local dev (`pnpm --filter @ai-delivery-hub/server db:migrate`); update `.env.example` by hand (see Progress note — this session couldn't write it); optionally review the Open questions item (mirror archiving) with the user.

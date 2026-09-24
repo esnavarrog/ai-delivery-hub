@@ -1,4 +1,4 @@
-import { replay, ticketDisplayKey, TicketPriority, TicketSource, TicketUpdatedFromOpPayload, type TicketEvent, type TicketSnapshot } from '@ai-delivery-hub/domain';
+import { ManualIntake, replay, ticketDisplayKey, TicketPriority, TicketSource, TicketUpdatedFromOpPayload, type TicketEvent, type TicketSnapshot } from '@ai-delivery-hub/domain';
 import { z } from 'zod';
 
 /**
@@ -17,6 +17,10 @@ export const TicketReceivedPayload = z.object({
   opUpdatedAt: z.string().optional(),
   /** Manual tickets only: free-form tags carried over from the Obsidian note frontmatter. */
   tags: z.array(z.string().min(1)).optional(),
+  /** Manual (feature request) tickets only: the structured problem-first intake. */
+  intake: ManualIntake.optional(),
+  /** Manual tickets only: the login of the ticket's requester/creator. */
+  requesterUserId: z.string().min(1).optional(),
 });
 export type TicketReceivedPayload = z.infer<typeof TicketReceivedPayload>;
 
@@ -52,6 +56,8 @@ export function initialSnapshot(received: TicketEvent): TicketSnapshot {
     unresolvedCommentCount: 0,
     createdAt: received.createdAt,
     updatedAt: received.createdAt,
+    ...(p.intake ? { department: p.intake.department } : {}),
+    ...(p.requesterUserId ? { requesterUserId: p.requesterUserId } : {}),
   };
 }
 

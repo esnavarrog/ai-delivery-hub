@@ -125,22 +125,33 @@ const planApprovalGuard = (ctx: TransitionContext): GuardResult => {
   return allow;
 };
 
+/**
+ * Checks `payload.round` (when the caller passes one) against `expected`. Callers that omit
+ * `payload` entirely (e.g. structural checks that only exercise state/actor rules) are left
+ * unchecked, so this stays backward compatible with every existing `canTransition` call site.
+ */
+const checkRound = (ctx: TransitionContext, expected: number): GuardResult => {
+  const round = ctx.payload?.['round'];
+  if (round === undefined) return allow;
+  return round === expected ? allow : deny(`payload.round must be ${expected} for this clarification round (got ${String(round)})`);
+};
+
 const clarificationRoundGuard = (ctx: TransitionContext): GuardResult => {
   const currentRound = ctx.ticket.clarificationRound ?? 0;
-  return currentRound < MAX_CLARIFICATION_ROUNDS
-    ? allow
-    : deny(`clarification rounds are capped at ${MAX_CLARIFICATION_ROUNDS}; a human must decide`);
+  if (currentRound >= MAX_CLARIFICATION_ROUNDS) {
+    return deny(`clarification rounds are capped at ${MAX_CLARIFICATION_ROUNDS}; a human must decide`);
+  }
+  return checkRound(ctx, currentRound + 1);
 };
 
 /** The ticket's own requester may answer; a lead or admin may answer any ticket; nobody else may. */
 const requesterAnswerGuard = (ctx: TransitionContext): GuardResult => {
   if (ctx.actorRole === 'requester') {
-    return ctx.ticket.requesterUserId === ctx.actor.id
-      ? allow
-      : deny('requester may only submit answers on their own ticket');
+    if (ctx.ticket.requesterUserId !== ctx.actor.id) return deny('requester may only submit answers on their own ticket');
+  } else if (ctx.actorRole === undefined || !OWNER_EQUIVALENT_ROLES.includes(ctx.actorRole)) {
+    return deny('only the ticket requester, a lead or an admin may submit answers');
   }
-  if (ctx.actorRole !== undefined && OWNER_EQUIVALENT_ROLES.includes(ctx.actorRole)) return allow;
-  return deny('only the ticket requester, a lead or an admin may submit answers');
+  return checkRound(ctx, ctx.ticket.clarificationRound ?? 0);
 };
 
 const replanGuard = (ctx: TransitionContext): GuardResult => {

@@ -104,11 +104,23 @@ export interface ReceivedOverrides {
   description?: string;
   priority?: 'low' | 'normal' | 'high' | 'immediate';
   createdAt?: string;
+  /** Manual (feature request) tickets only: the login of the ticket's requester/creator. */
+  requesterUserId?: string;
 }
 
 /** A well-formed `ticket_received` event so tests can seed a stream without going through ingest. */
 export function receivedEvent(ticketId: string, overrides: ReceivedOverrides = {}): TicketEvent {
   const source: TicketSource = overrides.source ?? { kind: 'openproject', workPackageId: overrides.opWorkPackageId ?? 4711, projectId: 15, lockVersion: 1 };
+  const payload: Record<string, unknown> = {
+    source,
+    subject: overrides.subject ?? '[AI] Login fails without cookie',
+    description: overrides.description ?? 'Steps to reproduce: open the app without a session cookie.',
+    status: 'New',
+    type: 'Bug',
+    priority: overrides.priority ?? 'normal',
+    opUpdatedAt: '2026-09-14T09:00:00Z',
+  };
+  if (overrides.requesterUserId !== undefined) payload['requesterUserId'] = overrides.requesterUserId;
   return {
     id: `10000000-0000-4000-8000-${ticketId.replace(/[^0-9a-f]/gi, '').padStart(12, '0').slice(-12)}`,
     ticketId,
@@ -116,15 +128,7 @@ export function receivedEvent(ticketId: string, overrides: ReceivedOverrides = {
     type: 'ticket_received',
     actor: { kind: 'system', id: 'ingest' },
     artifacts: [],
-    payload: {
-      source,
-      subject: overrides.subject ?? '[AI] Login fails without cookie',
-      description: overrides.description ?? 'Steps to reproduce: open the app without a session cookie.',
-      status: 'New',
-      type: 'Bug',
-      priority: overrides.priority ?? 'normal',
-      opUpdatedAt: '2026-09-14T09:00:00Z',
-    },
+    payload,
     createdAt: overrides.createdAt ?? '2026-09-14T11:00:00.000Z',
   } as TicketEvent;
 }

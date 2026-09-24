@@ -41,6 +41,8 @@ export function rowToSnapshot(row: TicketRow): TicketSnapshot {
     ['riskTier', row.riskTier ?? undefined],
     ['targetRepo', row.targetRepo ?? undefined],
     ['ownerUserId', row.ownerUserId ?? undefined],
+    ['department', row.department ?? undefined],
+    ['requesterUserId', row.requesterUserId ?? undefined],
     ['lastPlanVersionAt', iso(row.lastPlanVersionAt)],
     ['lastHumanCommentAt', iso(row.lastHumanCommentAt)],
   ];
@@ -71,6 +73,8 @@ export class PgTicketProjection implements TicketIndex, TicketQueries {
       riskTier: snapshot.riskTier ?? null,
       targetRepo: snapshot.targetRepo ?? null,
       ownerUserId: snapshot.ownerUserId ?? null,
+      department: snapshot.department ?? null,
+      requesterUserId: snapshot.requesterUserId ?? null,
       priority: snapshot.priority,
       planVersionCount: snapshot.planVersionCount,
       unresolvedCommentCount: snapshot.unresolvedCommentCount,

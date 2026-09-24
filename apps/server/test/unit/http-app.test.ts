@@ -1,8 +1,9 @@
 import type { FetchResponse } from '@ai-delivery-hub/contracts';
-import type { TicketEvent } from '@ai-delivery-hub/domain';
+import type { ManualIntake, TicketEvent } from '@ai-delivery-hub/domain';
 import { describe, expect, it, vi } from 'vitest';
 import { HUB_USER_HEADER, createApp } from '../../src/http/app.js';
 import { TicketCommands } from '../../src/modules/approval/commands.js';
+import { CreateManualTicket, type ManualKeySequence } from '../../src/modules/ingest/manual-ticket.js';
 import { SHA_HEAD, plan, triageResult } from '../helpers/fake-agent-runner.js';
 import {
   FixedClock,
@@ -16,7 +17,24 @@ import {
   receivedEvent,
 } from '../helpers/memory.js';
 
-const roles = { ana: 'dev', bob: 'dev', lea: 'lead', Macstban: 'admin', req: 'requester' } as const;
+const roles = { ana: 'dev', bob: 'dev', lea: 'lead', Macstban: 'admin', req: 'requester', req2: 'requester', quinn: 'qa' } as const;
+
+const sampleIntake: ManualIntake = {
+  department: 'finance',
+  problem: 'Reconciliation takes too long',
+  affected: 'Finance team',
+  frequency: 'weekly',
+  currentWorkaround: 'Manual spreadsheet',
+  expectedOutcome: 'One-click export',
+};
+
+class SequentialManualKeys implements ManualKeySequence {
+  private n = 0;
+  async next(): Promise<string> {
+    this.n += 1;
+    return `M-${String(this.n).padStart(4, '0')}`;
+  }
+}
 
 const json = async <T = Record<string, any>>(res: Response): Promise<T> => (await res.json()) as T;
 const as = (login: string, init: RequestInit = {}): RequestInit => ({ ...init, headers: { ...(init.headers ?? {}), [HUB_USER_HEADER]: login } });
@@ -66,6 +84,13 @@ async function harness(ingestFetch?: { execute(): Promise<FetchResponse> }) {
     planning: { enqueuePlanning: async (id) => void planningQueue.push(id) },
     allowedRepos: ['backend-parkingapp', 'libredte-api'],
   });
+  const createTicket = new CreateManualTicket({
+    eventStore: store,
+    keys: new SequentialManualKeys(),
+    triage: { enqueueTriage: async (id) => void triageQueue.push(id) },
+    ids,
+    clock,
+  });
   const defaultFetch: FetchResponse = { openproject: { fetched: 0, created: 0, updated: 0 }, obsidian: null };
   const app = createApp({
     queries: new MemoryTicketQueries(store),
@@ -73,6 +98,7 @@ async function harness(ingestFetch?: { execute(): Promise<FetchResponse> }) {
     sse: { pollIntervalMs: 5 },
     auth: { roles },
     commands,
+    createTicket,
     planVersions: versions,
     planComments: comments,
     runs,
@@ -80,6 +106,7 @@ async function harness(ingestFetch?: { execute(): Promise<FetchResponse> }) {
 
   await store.append('a', 0, awaitingOwner('a', 4711));
   await store.append('r', 0, planReview('r', 'ana', 4712));
+  await store.append('m', 0, [receivedEvent('m', { source: { kind: 'manual', key: 'M-9000' }, subject: 'Bulk export', requesterUserId: 'req' })]);
   await versions.insert({ id: 'v-1', ticketId: 'r', version: 1, plan: plan(), renderedMarkdown: '# Plan', baseCommitSha: SHA_HEAD, status: 'review', createdAt: '2026-09-14T11:06:00.000Z' });
   await runs.insert({ id: 'run-1', ticketId: 'r', kind: 'planning', status: 'succeeded', model: 'claude-opus-5', inputTokens: 10, outputTokens: 5, costUsd: 0.1, budgetTokens: 150_000, startedAt: '2026-09-14T11:05:00.000Z', endedAt: '2026-09-14T11:06:00.000Z', failureReason: null, errorMessage: null });
   return { app, store, versions, comments, runs, triageQueue, planningQueue };
@@ -112,7 +139,7 @@ describe('HTTP app', () => {
   describe('GET /api/tickets', () => {
     it('lists, filters and rejects bad filters', async () => {
       const { app } = await harness();
-      expect((await json(await app.request('/api/tickets', as('ana')))).tickets).toHaveLength(2);
+      expect((await json(await app.request('/api/tickets', as('ana')))).tickets).toHaveLength(3);
       expect((await json(await app.request('/api/tickets?state=plan_review', as('ana')))).tickets.map((t: { id: string }) => t.id)).toEqual(['r']);
       expect((await json(await app.request('/api/tickets?repo=backend-parkingapp&owner=ana', as('ana')))).tickets).toHaveLength(1);
       const bad = await app.request('/api/tickets?state=bogus', as('ana'));
@@ -126,6 +153,16 @@ describe('HTTP app', () => {
       expect(await ids('ana')).toEqual(['a', 'r']); // awaiting_owner + owner of r
       expect(await ids('bob')).toEqual(['a']);
       expect(await ids('req')).toEqual([]);
+    });
+
+    it('scopes a requester to only their own tickets; dev/lead/admin/qa keep seeing every ticket', async () => {
+      const { app } = await harness();
+      expect((await json(await app.request('/api/tickets', as('req')))).tickets.map((t: { id: string }) => t.id)).toEqual(['m']);
+      expect((await json(await app.request('/api/tickets', as('req2')))).tickets).toEqual([]);
+      expect((await json(await app.request('/api/tickets', as('ana')))).tickets).toHaveLength(3);
+      expect((await json(await app.request('/api/tickets', as('lea')))).tickets).toHaveLength(3);
+      expect((await json(await app.request('/api/tickets', as('Macstban')))).tickets).toHaveLength(3);
+      expect((await json(await app.request('/api/tickets', as('quinn')))).tickets).toHaveLength(3);
     });
   });
 
@@ -151,6 +188,97 @@ describe('HTTP app', () => {
     expect(body.versions[0]).toMatchObject({ version: 1, renderedMarkdown: '# Plan', plan: plan() });
     expect(body.comments).toHaveLength(1);
     expect(body.comments[0]).toMatchObject({ sectionPath: 'goal', body: 'Too broad', authorId: 'ana', resolvedByVersion: null });
+  });
+
+  describe('requester scoping (server-enforced)', () => {
+    it('GET /api/tickets/:id: 200 for the owning requester, 404 for a different requester; dev sees it either way', async () => {
+      const { app } = await harness();
+      expect((await app.request('/api/tickets/m', as('req'))).status).toBe(200);
+      expect((await app.request('/api/tickets/m', as('req2'))).status).toBe(404);
+      expect((await app.request('/api/tickets/r', as('req'))).status).toBe(404); // not their ticket
+      expect((await app.request('/api/tickets/m', as('ana'))).status).toBe(200);
+    });
+
+    it('GET /api/tickets/:id/plan: 404 for a requester who does not own the ticket', async () => {
+      const { app } = await harness();
+      expect((await app.request('/api/tickets/r/plan', as('req'))).status).toBe(404);
+      expect((await app.request('/api/tickets/r/plan', as('ana'))).status).toBe(200);
+    });
+
+    it('GET /api/tickets/:id/events/stream: 404 for a requester who does not own the ticket', async () => {
+      const { app } = await harness();
+      expect((await app.request('/api/tickets/r/events/stream?hub_user=req')).status).toBe(404);
+      expect((await app.request('/api/tickets/m/events/stream?hub_user=req')).status).toBe(200);
+    });
+  });
+
+  describe('POST /api/tickets (feature-request intake)', () => {
+    it('lets a requester create a ticket with intake; the caller becomes requesterUserId; triage is enqueued; 201', async () => {
+      const { app, triageQueue } = await harness();
+      const res = await app.request('/api/tickets', post('req', { title: 'Bulk export', description: 'We need a CSV export', intake: sampleIntake }));
+      expect(res.status).toBe(201);
+      const body = await json(res);
+      expect(body.ticket).toMatchObject({ subject: 'Bulk export', state: 'received', requesterUserId: 'req', department: 'finance' });
+      expect(triageQueue).toContain(body.ticket.id);
+    });
+
+    it('lets lead/admin create a ticket (their login becomes requesterUserId)', async () => {
+      const { app } = await harness();
+      const res = await app.request('/api/tickets', post('lea', { title: 'X', description: 'Y', intake: sampleIntake }));
+      expect(res.status).toBe(201);
+      expect((await json(res)).ticket.requesterUserId).toBe('lea');
+    });
+
+    it('forbids dev and qa (403)', async () => {
+      const { app } = await harness();
+      expect((await app.request('/api/tickets', post('ana', { title: 'X', description: 'Y', intake: sampleIntake }))).status).toBe(403);
+      expect((await app.request('/api/tickets', post('quinn', { title: 'X', description: 'Y', intake: sampleIntake }))).status).toBe(403);
+    });
+
+    it('400 when intake is missing or malformed', async () => {
+      const { app } = await harness();
+      expect((await app.request('/api/tickets', post('req', { title: 'X', description: 'Y' }))).status).toBe(400);
+      expect((await app.request('/api/tickets', post('req', { title: 'X', description: 'Y', intake: { ...sampleIntake, department: 'nope' } }))).status).toBe(400);
+    });
+  });
+
+  describe('POST /api/tickets/:id/answers', () => {
+    async function awaitingRequesterTicket(app: Awaited<ReturnType<typeof harness>>['app']) {
+      const created = await json(await app.request('/api/tickets', post('req', { title: 'X', description: 'Y', intake: sampleIntake })));
+      return created.ticket.id as string;
+    }
+
+    it("accepts the ticket's own requester's answers, re-enqueues triage, 200", async () => {
+      const { app, store, triageQueue } = await harness();
+      const ticketId = await awaitingRequesterTicket(app);
+      // move the ticket to awaiting_requester as the AI would (T3 territory), so the guard has a round to check against
+      const events = await store.load(ticketId);
+      await store.append(ticketId, events.length, [
+        { id: '70000000-0000-4000-8000-000000000001', ticketId, seq: events.length + 1, type: 'triage_started', actor: { kind: 'system', id: 'x' }, artifacts: [], payload: {}, createdAt: '2026-09-14T12:00:00.000Z' } as TicketEvent,
+        { id: '70000000-0000-4000-8000-000000000002', ticketId, seq: events.length + 2, type: 'requester_questions_asked', actor: { kind: 'ai', id: 'x' }, artifacts: [], payload: { round: 1, questions: [{ id: 'q1', text: 'Which region?' }] }, createdAt: '2026-09-14T12:01:00.000Z' } as TicketEvent,
+      ]);
+      triageQueue.length = 0;
+      const res = await app.request(`/api/tickets/${ticketId}/answers`, post('req', { round: 1, answers: [{ questionId: 'q1', text: 'LatAm' }] }));
+      expect(res.status).toBe(200);
+      const body = await json(res);
+      expect(body.ticket.state).toBe('triaging');
+      expect(body.enqueued).toBe('triage');
+      expect(triageQueue).toContain(ticketId);
+    });
+
+    it("409 when someone else's requester answers, or the round is stale", async () => {
+      const { app, store } = await harness();
+      const ticketId = await awaitingRequesterTicket(app);
+      const events = await store.load(ticketId);
+      await store.append(ticketId, events.length, [
+        { id: '71000000-0000-4000-8000-000000000001', ticketId, seq: events.length + 1, type: 'triage_started', actor: { kind: 'system', id: 'x' }, artifacts: [], payload: {}, createdAt: '2026-09-14T12:00:00.000Z' } as TicketEvent,
+        { id: '71000000-0000-4000-8000-000000000002', ticketId, seq: events.length + 2, type: 'requester_questions_asked', actor: { kind: 'ai', id: 'x' }, artifacts: [], payload: { round: 1, questions: [{ id: 'q1', text: 'Which region?' }] }, createdAt: '2026-09-14T12:01:00.000Z' } as TicketEvent,
+      ]);
+      const wrongUser = await app.request(`/api/tickets/${ticketId}/answers`, post('req2', { round: 1, answers: [{ questionId: 'q1', text: 'x' }] }));
+      expect(wrongUser.status).toBe(409);
+      const staleRound = await app.request(`/api/tickets/${ticketId}/answers`, post('req', { round: 2, answers: [{ questionId: 'q1', text: 'x' }] }));
+      expect(staleRound.status).toBe(409);
+    });
   });
 
   describe('commands', () => {
@@ -264,6 +392,18 @@ describe('HTTP app', () => {
       expect((await json(await app.request('/api/runs?ticketId=r', as('ana')))).runs.map((r: { id: string }) => r.id)).toEqual(['run-1']);
       expect((await json(await app.request('/api/runs/run-2', as('ana')))).run).toMatchObject({ failureReason: 'invalid_output', errorMessage: 'bad json' });
       expect((await app.request('/api/runs/nope', as('ana'))).status).toBe(404);
+    });
+
+    it('forbids a requester (403) on both the list and the by-id route; dev/lead/admin/qa unaffected', async () => {
+      const { app } = await harness();
+      const list = await app.request('/api/runs', as('req'));
+      expect(list.status).toBe(403);
+      expect((await json(list)).error.code).toBe('forbidden');
+      const byId = await app.request('/api/runs/run-1', as('req'));
+      expect(byId.status).toBe(403);
+      expect((await json(byId)).error.code).toBe('forbidden');
+      expect((await app.request('/api/runs', as('quinn'))).status).toBe(200);
+      expect((await app.request('/api/runs/run-1', as('lea'))).status).toBe(200);
     });
   });
 

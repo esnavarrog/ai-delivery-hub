@@ -229,4 +229,51 @@ describe('clarification loop (awaiting_requester)', () => {
     const r = canTransition({ ticket, actor: { kind: 'dev', id: 'someone-else' }, actorRole: 'dev' }, 'requester_answers_submitted');
     expect(r.allowed).toBe(false);
   });
+
+  describe('round invariants (payload.round must match the current clarificationRound)', () => {
+    it('is silent (allowed) when the caller does not pass payload.round, preserving old callers', () => {
+      const ticket = snapshotIn('triaging', { clarificationRound: 1 });
+      expect(canTransition({ ticket, actor: aiActor }, 'requester_questions_asked')).toEqual({ allowed: true });
+    });
+
+    it('allows requester_questions_asked when payload.round increments cleanly from the current round', () => {
+      const ticket = snapshotIn('triaging', { clarificationRound: 1 });
+      expect(
+        canTransition({ ticket, actor: aiActor, payload: { round: 2, questions: [{ id: 'q1', text: 'x' }] } }, 'requester_questions_asked'),
+      ).toEqual({ allowed: true });
+    });
+
+    it('denies a repeated round 1 from bypassing the cap (round must be clarificationRound + 1, not a replay)', () => {
+      const ticket = snapshotIn('triaging', { clarificationRound: 1 });
+      const r = canTransition({ ticket, actor: aiActor, payload: { round: 1, questions: [{ id: 'q1', text: 'x' }] } }, 'requester_questions_asked');
+      expect(r.allowed).toBe(false);
+      if (!r.allowed) expect(r.reason).toMatch(/round/i);
+    });
+
+    it('denies asking round 3 outright (skipping ahead) even though the cap check alone would not catch it', () => {
+      const ticket = snapshotIn('triaging', { clarificationRound: 0 });
+      const r = canTransition({ ticket, actor: aiActor, payload: { round: 3, questions: [{ id: 'q1', text: 'x' }] } }, 'requester_questions_asked');
+      expect(r.allowed).toBe(false);
+    });
+
+    it('allows requester_answers_submitted when payload.round matches the current clarificationRound', () => {
+      const ticket = snapshotIn('awaiting_requester', { requesterUserId: requesterActor.id, clarificationRound: 2 });
+      expect(
+        canTransition(
+          { ticket, actor: requesterActor, actorRole: 'requester', payload: { round: 2, answers: [{ questionId: 'q1', text: 'a' }] } },
+          'requester_answers_submitted',
+        ),
+      ).toEqual({ allowed: true });
+    });
+
+    it('denies answering a stale round', () => {
+      const ticket = snapshotIn('awaiting_requester', { requesterUserId: requesterActor.id, clarificationRound: 2 });
+      const r = canTransition(
+        { ticket, actor: requesterActor, actorRole: 'requester', payload: { round: 1, answers: [{ questionId: 'q1', text: 'a' }] } },
+        'requester_answers_submitted',
+      );
+      expect(r.allowed).toBe(false);
+      if (!r.allowed) expect(r.reason).toMatch(/round/i);
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import type { Actor, Clock, EventStore, IdGenerator, TicketEvent, TicketPriority } from '@ai-delivery-hub/domain';
+import type { Actor, Clock, EventStore, IdGenerator, ManualIntake, TicketEvent, TicketPriority } from '@ai-delivery-hub/domain';
 import type { TriageScheduler } from './ingest-work-package.js';
 import type { TicketReceivedPayload } from './ticket-received.js';
 
@@ -13,6 +13,10 @@ export interface ManualTicketInput {
   priority?: TicketPriority;
   /** Free-form tags carried over from the Obsidian note frontmatter, if any. */
   tags?: string[];
+  /** Structured problem-first intake for a feature request submitted from the web route. */
+  intake?: ManualIntake;
+  /** The login of the ticket's requester/creator (the web route's authenticated user). */
+  requesterUserId?: string;
 }
 
 export interface CreateManualTicketDeps {
@@ -46,6 +50,8 @@ export class CreateManualTicket {
       priority: input.priority ?? 'normal',
     };
     if (input.tags && input.tags.length > 0) payload.tags = input.tags;
+    if (input.intake) payload.intake = input.intake;
+    if (input.requesterUserId) payload.requesterUserId = input.requesterUserId;
     const event: TicketEvent = {
       id: this.deps.ids.uuid(),
       ticketId,

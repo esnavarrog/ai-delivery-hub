@@ -59,4 +59,27 @@ describe('CreateManualTicket', () => {
     const result = await useCase.execute({ title: 'Preset', description: '' }, 'M-0042');
     expect(result.key).toBe('M-0042');
   });
+
+  it('carries intake and requesterUserId on the ticket_received payload when given', async () => {
+    const { store, useCase } = harness();
+    const intake = {
+      department: 'support' as const,
+      problem: 'Tickets pile up',
+      affected: 'Support team',
+      frequency: 'daily' as const,
+      currentWorkaround: 'None',
+      expectedOutcome: 'Auto-triage',
+    };
+    const result = await useCase.execute({ title: 'Feature request', description: 'Please help', intake, requesterUserId: 'req-1' });
+    const events = await store.load(result.ticketId);
+    expect(events[0]?.payload).toMatchObject({ intake, requesterUserId: 'req-1' });
+  });
+
+  it('omits intake and requesterUserId when not given', async () => {
+    const { store, useCase } = harness();
+    const result = await useCase.execute({ title: 'Plain', description: '' });
+    const events = await store.load(result.ticketId);
+    expect(events[0]?.payload).not.toHaveProperty('intake');
+    expect(events[0]?.payload).not.toHaveProperty('requesterUserId');
+  });
 });

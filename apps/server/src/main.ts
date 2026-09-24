@@ -91,10 +91,12 @@ async function main(): Promise<void> {
   const runPlanning = new RunPlanning({ eventStore, ids, clock, runner: planningRunner, runs, planVersions, planComments, worktrees, policies });
   const commands = new TicketCommands({ eventStore, ids, clock, planVersions, planComments, triage: triageScheduler, planning: planningScheduler, allowedRepos: Object.keys(policies.repos) });
 
+  // Shared by the Obsidian importer and the `POST /api/tickets` web intake route.
+  const manualKeys = new PgManualKeySequence(dbHandle.db);
+  const createManualTicket = new CreateManualTicket({ eventStore, keys: manualKeys, triage: triageScheduler, ids, clock });
+
   let obsidian: ImportObsidianInbox | undefined;
   if (config.OBSIDIAN_VAULT_DIR) {
-    const manualKeys = new PgManualKeySequence(dbHandle.db);
-    const createManualTicket = new CreateManualTicket({ eventStore, keys: manualKeys, triage: triageScheduler, ids, clock });
     obsidian = new ImportObsidianInbox({
       vaultDir: config.OBSIDIAN_VAULT_DIR,
       inboxDir: config.OBSIDIAN_INBOX_DIR,
@@ -119,6 +121,7 @@ async function main(): Promise<void> {
     ingestFetch,
     auth: { roles: policies.roles },
     commands,
+    createTicket: createManualTicket,
     planVersions,
     planComments,
     runs,

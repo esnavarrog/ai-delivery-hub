@@ -50,3 +50,42 @@ describe('initialSnapshot: legacy ticket_received replay', () => {
     expect(initialSnapshot(legacyEvent())).toEqual(initialSnapshot(currentEvent()));
   });
 });
+
+describe('initialSnapshot: manual intake', () => {
+  function manualEvent(payload: Record<string, unknown>): TicketEvent {
+    return {
+      ...base,
+      payload: {
+        source: { kind: 'manual', key: 'M-0001' },
+        subject: 'Add a bulk export',
+        description: 'We need a CSV export',
+        priority: 'normal',
+        ...payload,
+      },
+    } as TicketEvent;
+  }
+
+  it('sets department from intake.department and requesterUserId when present', () => {
+    const snapshot = initialSnapshot(
+      manualEvent({
+        requesterUserId: 'req-1',
+        intake: {
+          department: 'finance',
+          problem: 'Reconciliation takes too long',
+          affected: 'Finance team',
+          frequency: 'weekly',
+          currentWorkaround: 'Manual spreadsheet',
+          expectedOutcome: 'One-click export',
+        },
+      }),
+    );
+    expect(snapshot.department).toBe('finance');
+    expect(snapshot.requesterUserId).toBe('req-1');
+  });
+
+  it('leaves department and requesterUserId unset for an OP-sourced or old manual ticket without intake', () => {
+    const snapshot = initialSnapshot(currentEvent());
+    expect(snapshot.department).toBeUndefined();
+    expect(snapshot.requesterUserId).toBeUndefined();
+  });
+});

@@ -1,4 +1,6 @@
 import {
+  ClarificationAnswer,
+  ManualIntake,
   Plan,
   Role,
   RunFailureReason,
@@ -145,6 +147,25 @@ export type DuplicateBody = z.infer<typeof DuplicateBody>;
 
 export const FlagBody = z.object({ flag: TicketFlag, set: z.boolean(), reason: Reason.optional() });
 export type FlagBody = z.infer<typeof FlagBody>;
+
+/** Body of `POST /api/tickets`: a requester (or lead/admin, filing on someone's behalf) raises a manual feature request. */
+export const CreateTicketBody = z.object({
+  title: z.string().trim().min(1),
+  description: z.string().trim().min(1),
+  intake: ManualIntake,
+});
+export type CreateTicketBody = z.infer<typeof CreateTicketBody>;
+
+/** Response of `POST /api/tickets`. */
+export const CreateTicketResponse = z.object({ ticket: TicketSnapshot });
+export type CreateTicketResponse = z.infer<typeof CreateTicketResponse>;
+
+/** Body of `POST /api/tickets/:id/answers`: the requester (or lead/admin) answers the AI's clarifying questions. */
+export const SubmitAnswersBody = z.object({
+  round: z.number().int().min(1),
+  answers: z.array(ClarificationAnswer).min(1),
+});
+export type SubmitAnswersBody = z.infer<typeof SubmitAnswersBody>;
 
 export const AddCommentBody = z.object({
   sectionPath: SectionPath,

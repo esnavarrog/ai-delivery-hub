@@ -28,6 +28,10 @@ export const tickets = pgTable(
     riskTier: text('risk_tier'),
     targetRepo: text('target_repo'),
     ownerUserId: text('owner_user_id'),
+    /** Manual (feature request) tickets only; null on OpenProject-sourced tickets. */
+    department: text('department'),
+    /** The ticket's creator/requester login; drives requester-scoped reads and the answer guard. */
+    requesterUserId: text('requester_user_id'),
     priority: text('priority').notNull(),
     planVersionCount: integer('plan_version_count').notNull().default(0),
     unresolvedCommentCount: integer('unresolved_comment_count').notNull().default(0),
@@ -37,7 +41,12 @@ export const tickets = pgTable(
     createdAt: ts('created_at').notNull(),
     updatedAt: ts('updated_at').notNull(),
   },
-  (t) => [index('tickets_state_idx').on(t.state), index('tickets_owner_idx').on(t.ownerUserId), index('tickets_repo_idx').on(t.targetRepo)],
+  (t) => [
+    index('tickets_state_idx').on(t.state),
+    index('tickets_owner_idx').on(t.ownerUserId),
+    index('tickets_repo_idx').on(t.targetRepo),
+    index('tickets_requester_idx').on(t.requesterUserId),
+  ],
 );
 
 /** Append-only event stream; `(ticket_id, seq)` uniqueness is what enforces optimistic concurrency. */

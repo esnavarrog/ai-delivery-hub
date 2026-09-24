@@ -24,6 +24,7 @@ import { IngestWorkPackage } from './modules/ingest/ingest-work-package.js';
 import { CreateManualTicket } from './modules/ingest/manual-ticket.js';
 import { ImportObsidianInbox } from './modules/ingest/obsidian-inbox-import.js';
 import { RunPlanning } from './modules/planning/run-planning.js';
+import { createMirrorAfterAppend } from './modules/sync/mirror.js';
 import { RunTriage } from './modules/triage/run-triage.js';
 
 const log: Logger = {
@@ -48,7 +49,10 @@ async function main(): Promise<void> {
   const boss = await createBoss(config.DATABASE_URL, log);
 
   const projection = new PgTicketProjection(dbHandle.db);
-  const eventStore = new ProjectingEventStore(new PgEventStore(dbHandle.db), projection, []);
+  const mirrorHooks = config.OBSIDIAN_VAULT_DIR
+    ? [createMirrorAfterAppend({ vaultDir: config.OBSIDIAN_VAULT_DIR, ticketsDir: config.OBSIDIAN_TICKETS_DIR, hubPublicUrl: config.HUB_PUBLIC_URL }, log)]
+    : [];
+  const eventStore = new ProjectingEventStore(new PgEventStore(dbHandle.db), projection, mirrorHooks);
   const planVersions = new PgPlanVersionsRepository(dbHandle.db);
   const planComments = new PgPlanCommentsRepository(dbHandle.db);
   const runs = new PgRunsRepository(dbHandle.db);

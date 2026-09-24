@@ -32,6 +32,14 @@ export const Env = z.object({
   WORKTREES_DIR: z.preprocess(emptyToUndefined, nonEmpty.default(DEFAULT_WORKTREES_DIR)),
   /** Optional explicit path to the Claude Code binary for the Agent SDK; defaults to the SDK's bundled lookup. */
   CLAUDE_CODE_PATH: z.preprocess(emptyToUndefined, nonEmpty.optional()),
+  /** Public base URL of the web app, linked from a mirror note's frontmatter (no trailing slash). */
+  HUB_PUBLIC_URL: z.preprocess(
+    emptyToUndefined,
+    z
+      .url({ protocol: /^https?$/ })
+      .default('http://localhost:5173')
+      .transform((u) => u.replace(/\/+$/, '')),
+  ),
   /** Obsidian vault root. Optional: without it, Fetch only pulls OpenProject and the mirror writer is disabled. */
   OBSIDIAN_VAULT_DIR: z.preprocess(emptyToUndefined, nonEmpty.optional()),
   /** Where manual-ticket inbox notes are read from, relative to OBSIDIAN_VAULT_DIR (PARA-friendly, configurable). */

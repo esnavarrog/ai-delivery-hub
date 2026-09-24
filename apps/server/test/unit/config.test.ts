@@ -38,6 +38,12 @@ describe('loadConfig: Obsidian vault', () => {
     expect(config.OBSIDIAN_TICKETS_DIR).toBe('hub/tickets');
   });
 
+  it('defaults HUB_PUBLIC_URL, used to link a mirror note back to the ticket, and normalizes a trailing slash', () => {
+    expect(loadConfig({ ...valid, HUB_PUBLIC_URL: '' }).HUB_PUBLIC_URL).toBe('http://localhost:5173');
+    expect(loadConfig({ ...valid, HUB_PUBLIC_URL: 'https://hub.example.com/' }).HUB_PUBLIC_URL).toBe('https://hub.example.com');
+    expect(() => loadConfig({ ...valid, HUB_PUBLIC_URL: 'not a url' })).toThrow(ConfigError);
+  });
+
   it('accepts a configured vault dir and PARA-style relative subfolders', () => {
     const config = loadConfig({ ...valid, OBSIDIAN_VAULT_DIR: '/home/esteban/vault', OBSIDIAN_INBOX_DIR: '1-Inbox', OBSIDIAN_TICKETS_DIR: '2-Projects/hub-tickets' });
     expect(config.OBSIDIAN_VAULT_DIR).toBe('/home/esteban/vault');

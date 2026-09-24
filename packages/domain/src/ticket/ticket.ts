@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { Confidence, Effort } from '../triage/triage-result.js';
+import { Department } from './manual-intake.js';
 import { TicketSource } from './ticket-source.js';
 import { RiskTier, TicketCategory, TicketFlag, TicketState } from './ticket-state.js';
 
@@ -30,5 +32,18 @@ export const TicketSnapshot = z.object({
   lastHumanCommentAt: z.iso.datetime().optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  /** Manual (feature request) tickets only; absent on OpenProject-sourced tickets. */
+  department: Department.optional(),
+  /** The ticket's creator/requester login; drives the clarification-answer guard. */
+  requesterUserId: z.string().min(1).optional(),
+  /** How many clarification rounds have been asked so far; capped at `MAX_CLARIFICATION_ROUNDS`. */
+  clarificationRound: z.number().int().min(0).optional(),
+  pendingQuestionCount: z.number().int().min(0).optional(),
+  /** Effective RICE inputs, set by `triage_completed`'s assessment and overridable by `triage_confirmed`. */
+  value: z.number().int().min(1).max(5).optional(),
+  reach: z.number().int().min(1).max(5).optional(),
+  confidence: Confidence.optional(),
+  effort: Effort.optional(),
+  riceScore: z.number().optional(),
 });
 export type TicketSnapshot = z.infer<typeof TicketSnapshot>;

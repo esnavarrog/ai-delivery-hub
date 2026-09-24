@@ -47,6 +47,8 @@ describe('TicketEventType', () => {
       'op_sync_posted',
       'ticket_updated_from_op',
       'triage_confirmed',
+      'requester_questions_asked',
+      'requester_answers_submitted',
     ];
     expect([...TicketEventType.options].sort()).toEqual([...expected].sort());
   });
@@ -60,6 +62,69 @@ describe('triage_confirmed payload', () => {
       TicketEvent.safeParse({ ...base, type: 'triage_confirmed', actor, payload: { riskTier: 'high', targetRepo: 'web' } }).success,
     ).toBe(true);
     expect(TicketEvent.safeParse({ ...base, type: 'triage_confirmed', actor, payload: { category: 'epic' } }).success).toBe(false);
+  });
+
+  it('accepts an optional scores override for a lead/admin to override AI-suggested RICE inputs', () => {
+    const actor = { kind: 'dev', id: 'lead-1' };
+    const ok = TicketEvent.safeParse({
+      ...base,
+      type: 'triage_confirmed',
+      actor,
+      payload: { scores: { value: 5, reach: 4, confidence: 1, effort: 'L' } },
+    });
+    expect(ok.success).toBe(true);
+    const bad = TicketEvent.safeParse({
+      ...base,
+      type: 'triage_confirmed',
+      actor,
+      payload: { scores: { value: 6, reach: 4, confidence: 1, effort: 'L' } },
+    });
+    expect(bad.success).toBe(false);
+    const badConfidence = TicketEvent.safeParse({
+      ...base,
+      type: 'triage_confirmed',
+      actor,
+      payload: { scores: { value: 5, reach: 4, confidence: 0.9, effort: 'L' } },
+    });
+    expect(badConfidence.success).toBe(false);
+  });
+});
+
+describe('requester_questions_asked payload', () => {
+  it('requires round and a non-empty questions array', () => {
+    const actor = { kind: 'ai', id: 'triager' };
+    const ok = TicketEvent.safeParse({
+      ...base,
+      type: 'requester_questions_asked',
+      actor,
+      payload: { round: 1, questions: [{ id: 'q1', text: 'How many users are affected?' }] },
+    });
+    expect(ok.success).toBe(true);
+    expect(
+      TicketEvent.safeParse({ ...base, type: 'requester_questions_asked', actor, payload: { round: 1, questions: [] } })
+        .success,
+    ).toBe(false);
+    expect(
+      TicketEvent.safeParse({ ...base, type: 'requester_questions_asked', actor, payload: { round: 0, questions: [{ id: 'q1', text: 'x' }] } })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe('requester_answers_submitted payload', () => {
+  it('requires round and a non-empty answers array', () => {
+    const actor = { kind: 'dev', id: 'req-1' };
+    const ok = TicketEvent.safeParse({
+      ...base,
+      type: 'requester_answers_submitted',
+      actor,
+      payload: { round: 1, answers: [{ questionId: 'q1', text: '12 people' }] },
+    });
+    expect(ok.success).toBe(true);
+    expect(
+      TicketEvent.safeParse({ ...base, type: 'requester_answers_submitted', actor, payload: { round: 1, answers: [] } })
+        .success,
+    ).toBe(false);
   });
 });
 

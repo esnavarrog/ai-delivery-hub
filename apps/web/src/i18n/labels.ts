@@ -5,6 +5,7 @@ import type { RunKind, RunStatus } from '@ai-delivery-hub/contracts';
 export const ticketStateLabels: Record<TicketState, string> = {
   received: 'Recibido',
   triaging: 'En triaje',
+  awaiting_requester: 'Esperando respuesta',
   triaged: 'Triaje listo',
   awaiting_owner: 'Esperando responsable',
   planning: 'En planificación',

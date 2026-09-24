@@ -2,7 +2,7 @@ import type { Actor } from '../src/ticket/actor.js';
 import type { TicketEvent } from '../src/events/ticket-event.js';
 import type { TicketSnapshot } from '../src/ticket/ticket.js';
 import type { TicketState } from '../src/ticket/ticket-state.js';
-import type { TriageResult } from '../src/triage/triage-result.js';
+import type { TriageAssessment, TriageResult } from '../src/triage/triage-result.js';
 import type { Plan } from '../src/plan/plan.js';
 
 export const SHA_A = 'a'.repeat(40);
@@ -13,6 +13,7 @@ export const aiActor: Actor = { kind: 'ai', id: 'planner' };
 export const ownerDev: Actor = { kind: 'dev', id: 'dev-owner' };
 export const otherDev: Actor = { kind: 'dev', id: 'dev-other' };
 export const adminUser: Actor = { kind: 'dev', id: 'admin-1' };
+export const requesterActor: Actor = { kind: 'dev', id: 'req-1' };
 
 export function validTriageResult(overrides: Partial<TriageResult> = {}): TriageResult {
   return {
@@ -22,6 +23,30 @@ export function validTriageResult(overrides: Partial<TriageResult> = {}): Triage
     summary: 'Login fails when the session cookie is missing.',
     duplicateCandidates: [],
     riskSignals: ['auth'],
+    ...overrides,
+  };
+}
+
+export function validAssessment(overrides: Partial<TriageAssessment> = {}): TriageAssessment {
+  return {
+    functional: {
+      clarity: 4,
+      acceptanceCriteria: ['Given a valid session, login succeeds'],
+      questions: [],
+    },
+    technical: {
+      feasibility: 'feasible',
+      risks: [],
+      dependencies: [],
+    },
+    management: {
+      value: 4,
+      reach: 3,
+      confidence: 0.8,
+      effort: 'M',
+      recommendation: 'approve',
+      rationale: 'High value, moderate effort.',
+    },
     ...overrides,
   };
 }

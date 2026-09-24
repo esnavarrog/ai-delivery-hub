@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TriageResult, triageResultSchemaFor } from '../../src/triage/triage-result.js';
-import { validTriageResult } from '../fixtures.js';
+import { validAssessment, validTriageResult } from '../fixtures.js';
 
 describe('TriageResult', () => {
   it('parses a valid fixture', () => {
@@ -44,6 +44,48 @@ describe('TriageResult', () => {
       alreadyImplementedHint: { evidencePaths: 'src/a.ts', explanation: 'exists' },
     });
     expect(badHint.success).toBe(false);
+  });
+});
+
+describe('TriageResult.assessment (optional, backward compatible)', () => {
+  it('parses without an assessment (old triage results keep working)', () => {
+    expect(TriageResult.safeParse(validTriageResult()).success).toBe(true);
+  });
+
+  it('parses a full three-lens assessment', () => {
+    const r = TriageResult.safeParse({ ...validTriageResult(), assessment: validAssessment() });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects an out-of-range functional clarity', () => {
+    const bad = validAssessment({ functional: { clarity: 6, acceptanceCriteria: [], questions: [] } });
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('rejects an unknown technical feasibility', () => {
+    const bad = validAssessment();
+    // @ts-expect-error testing invalid input
+    bad.technical.feasibility = 'maybe';
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('rejects a management confidence outside 0.5/0.8/1', () => {
+    const bad = validAssessment();
+    // @ts-expect-error testing invalid input
+    bad.management.confidence = 0.9;
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('rejects an unknown management recommendation', () => {
+    const bad = validAssessment();
+    // @ts-expect-error testing invalid input
+    bad.management.recommendation = 'maybe_later';
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('rejects value/reach outside 1..5', () => {
+    const bad = validAssessment({ management: { ...validAssessment().management, value: 0 } });
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
   });
 });
 

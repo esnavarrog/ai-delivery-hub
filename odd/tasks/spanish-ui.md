@@ -27,7 +27,27 @@ The user reviews and approves plans in Spanish. Today UI copy and AI output are 
 Mode: strict (global config). Runner: `pnpm -r test`, `pnpm typecheck`, `pnpm build:web`.
 
 ## Tasks
-- [ ] T1 — Web UI copy in Spanish (route: delegated, writer trigger: many non-trivial files)
+- [x] T1 — Web UI copy in Spanish (route: delegated, writer trigger: many non-trivial files)
+  - commit d3cd1cd — `feat(web): Spanish UI copy, labels and es-CL formatting`
+  - Added `apps/web/src/i18n/{es.ts,labels.ts,index.ts}`: typed dictionary + enum label maps
+    (ticket state/risk/category/role/flag/priority/actor/run status/run failure reason/run kind).
+  - Replaced every user-visible string across Header, root, inbox (incl. empty state explaining
+    Fetch/OP rule/Obsidian), board, plan (view/markdown/comments/version switcher), runs, ticket
+    (header/timeline/action panel/dialogs/risk banner), toasts (queries.ts), shared ui primitives
+    (state-chip, risk-badge, source-badge, flag-chips, actor-avatar, relative-time, dialog.tsx close).
+  - `lib/format.ts`: `relativeTime` uses date-fns `es` locale; new `formatAbsolute()` uses `es-CL`;
+    `formatCost` "n/a" -> "n/d". `index.html` `<html lang="es">`. Fetch button renamed "Traer tickets".
+  - Keyboard shortcuts (j/k/Enter/a/r) unchanged; only their in-UI description is Spanish.
+  - Checks: `pnpm --filter @ai-delivery-hub/web typecheck` pass; `pnpm --filter @ai-delivery-hub/web test`
+    (vitest) 14 files / 64 tests pass; `pnpm build:web` pass.
+  - RED evidence: updated test expectations to Spanish copy first and observed failures in
+    format.test.ts, event-to-sentence.test.ts, action-resolver.test.ts, plan-view/plan-markdown,
+    inbox/timeline/action-panel component tests, containers/inbox and containers/ticket-approve,
+    then implemented sources until green.
+  - Deviation: server-originated error messages (ApiError bodies from the API, e.g. "unknown user
+    esteban; add it to repos.yaml roles", "plan has 1 unresolved comment(s)") are left in English —
+    out of the mapped T1 file scope (they live in apps/server validation/domain code, not listed in
+    the assignment's file map); flagged as an open question below.
 - [ ] T2 — AI output language es via policies (route: delegated)
 - [ ] T3 — Mirror note Spanish text + README (route: delegated)
 

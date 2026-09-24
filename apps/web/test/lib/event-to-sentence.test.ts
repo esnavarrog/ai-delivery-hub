@@ -52,4 +52,36 @@ describe('eventToSentence', () => {
     expect(eventToSentence(event({ type: 'triage_confirmed', actor: { kind: 'dev', id: 'Ana' }, payload: {} })).text).toBe('Ana confirmó el triaje de la IA');
     expect(eventToSentence(event({ type: 'triage_confirmed', actor: { kind: 'dev', id: 'Ana' }, payload: { riskTier: 'high' } })).text).toBe('Ana confirmó el triaje con cambios: riesgo alto');
   });
+
+  it('describes requester_questions_asked with the question count and round', () => {
+    const s = eventToSentence(
+      event({
+        type: 'requester_questions_asked',
+        actor: { kind: 'ai', id: 'claude' },
+        payload: { round: 1, questions: [{ id: 'q1', text: 'Which region?' }, { id: 'q2', text: 'How urgent?' }] },
+      }),
+    );
+    expect(s.text).toBe('La IA hizo 2 preguntas al solicitante (ronda 1)');
+  });
+
+  it('names the actor and round on requester_answers_submitted', () => {
+    const s = eventToSentence(
+      event({ type: 'requester_answers_submitted', actor: { kind: 'dev', id: 'Esteban' }, payload: { round: 1, answers: [{ questionId: 'q1', text: 'LatAm' }] } }),
+    );
+    expect(s.text).toBe('Esteban respondió las preguntas de la ronda 1');
+  });
+
+  it('describes ticket_received per source: OpenProject, manual intake form, plain manual', () => {
+    expect(eventToSentence(event({ type: 'ticket_received', actor: { kind: 'system', id: 'ingest' }, payload: { source: { kind: 'openproject', workPackageId: 1, projectId: 2, lockVersion: 0 } } })).text).toBe(
+      'Ticket recibido desde OpenProject',
+    );
+    expect(
+      eventToSentence(
+        event({ type: 'ticket_received', actor: { kind: 'system', id: 'manual-intake' }, payload: { source: { kind: 'manual', key: 'M-0001' }, intake: { department: 'finance' } } }),
+      ).text,
+    ).toBe('Solicitud recibida desde el formulario');
+    expect(eventToSentence(event({ type: 'ticket_received', actor: { kind: 'system', id: 'manual-intake' }, payload: { source: { kind: 'manual', key: 'M-0001' } } })).text).toBe(
+      'Ticket manual recibido',
+    );
+  });
 });

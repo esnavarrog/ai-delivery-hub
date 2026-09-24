@@ -13,7 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BoardRouteImport } from './routes/board'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as RunsRouteImport } from './routes/runs'
-import { Route as SolicitudesRouteImport } from './routes/solicitudes'
+import { Route as SolicitudesIndexRouteImport } from './routes/solicitudes.index'
 import { Route as SolicitudesNuevaRouteImport } from './routes/solicitudes.nueva'
 import { Route as TicketsIdIndexRouteImport } from './routes/tickets.$id.index'
 import { Route as TicketsIdPlanRouteImport } from './routes/tickets.$id.plan'
@@ -38,15 +38,15 @@ const RunsRoute = RunsRouteImport.update({
   path: '/runs',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SolicitudesRoute = SolicitudesRouteImport.update({
-  id: '/solicitudes',
-  path: '/solicitudes',
+const SolicitudesIndexRoute = SolicitudesIndexRouteImport.update({
+  id: '/solicitudes/',
+  path: '/solicitudes/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SolicitudesNuevaRoute = SolicitudesNuevaRouteImport.update({
-  id: '/nueva',
-  path: '/nueva',
-  getParentRoute: () => SolicitudesRoute,
+  id: '/solicitudes/nueva',
+  path: '/solicitudes/nueva',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const TicketsIdIndexRoute = TicketsIdIndexRouteImport.update({
   id: '/tickets/$id/',
@@ -64,8 +64,8 @@ export interface FileRoutesByFullPath {
   '/board': typeof BoardRoute
   '/inbox': typeof InboxRoute
   '/runs': typeof RunsRoute
-  '/solicitudes': typeof SolicitudesRouteWithChildren
   '/solicitudes/nueva': typeof SolicitudesNuevaRoute
+  '/solicitudes/': typeof SolicitudesIndexRoute
   '/tickets/$id/plan': typeof TicketsIdPlanRoute
   '/tickets/$id/': typeof TicketsIdIndexRoute
 }
@@ -74,8 +74,8 @@ export interface FileRoutesByTo {
   '/board': typeof BoardRoute
   '/inbox': typeof InboxRoute
   '/runs': typeof RunsRoute
-  '/solicitudes': typeof SolicitudesRouteWithChildren
   '/solicitudes/nueva': typeof SolicitudesNuevaRoute
+  '/solicitudes': typeof SolicitudesIndexRoute
   '/tickets/$id/plan': typeof TicketsIdPlanRoute
   '/tickets/$id': typeof TicketsIdIndexRoute
 }
@@ -85,8 +85,8 @@ export interface FileRoutesById {
   '/board': typeof BoardRoute
   '/inbox': typeof InboxRoute
   '/runs': typeof RunsRoute
-  '/solicitudes': typeof SolicitudesRouteWithChildren
   '/solicitudes/nueva': typeof SolicitudesNuevaRoute
+  '/solicitudes/': typeof SolicitudesIndexRoute
   '/tickets/$id/plan': typeof TicketsIdPlanRoute
   '/tickets/$id/': typeof TicketsIdIndexRoute
 }
@@ -97,8 +97,8 @@ export interface FileRouteTypes {
     | '/board'
     | '/inbox'
     | '/runs'
-    | '/solicitudes'
     | '/solicitudes/nueva'
+    | '/solicitudes/'
     | '/tickets/$id/plan'
     | '/tickets/$id/'
   fileRoutesByTo: FileRoutesByTo
@@ -107,8 +107,8 @@ export interface FileRouteTypes {
     | '/board'
     | '/inbox'
     | '/runs'
-    | '/solicitudes'
     | '/solicitudes/nueva'
+    | '/solicitudes'
     | '/tickets/$id/plan'
     | '/tickets/$id'
   id:
@@ -117,8 +117,8 @@ export interface FileRouteTypes {
     | '/board'
     | '/inbox'
     | '/runs'
-    | '/solicitudes'
     | '/solicitudes/nueva'
+    | '/solicitudes/'
     | '/tickets/$id/plan'
     | '/tickets/$id/'
   fileRoutesById: FileRoutesById
@@ -128,7 +128,8 @@ export interface RootRouteChildren {
   BoardRoute: typeof BoardRoute
   InboxRoute: typeof InboxRoute
   RunsRoute: typeof RunsRoute
-  SolicitudesRoute: typeof SolicitudesRouteWithChildren
+  SolicitudesNuevaRoute: typeof SolicitudesNuevaRoute
+  SolicitudesIndexRoute: typeof SolicitudesIndexRoute
   TicketsIdPlanRoute: typeof TicketsIdPlanRoute
   TicketsIdIndexRoute: typeof TicketsIdIndexRoute
 }
@@ -163,19 +164,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RunsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/solicitudes': {
-      id: '/solicitudes'
+    '/solicitudes/': {
+      id: '/solicitudes/'
       path: '/solicitudes'
-      fullPath: '/solicitudes'
-      preLoaderRoute: typeof SolicitudesRouteImport
+      fullPath: '/solicitudes/'
+      preLoaderRoute: typeof SolicitudesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/solicitudes/nueva': {
       id: '/solicitudes/nueva'
-      path: '/nueva'
+      path: '/solicitudes/nueva'
       fullPath: '/solicitudes/nueva'
       preLoaderRoute: typeof SolicitudesNuevaRouteImport
-      parentRoute: typeof SolicitudesRoute
+      parentRoute: typeof rootRouteImport
     }
     '/tickets/$id/': {
       id: '/tickets/$id/'
@@ -194,24 +195,13 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface SolicitudesRouteChildren {
-  SolicitudesNuevaRoute: typeof SolicitudesNuevaRoute
-}
-
-const SolicitudesRouteChildren: SolicitudesRouteChildren = {
-  SolicitudesNuevaRoute: SolicitudesNuevaRoute,
-}
-
-const SolicitudesRouteWithChildren = SolicitudesRoute._addFileChildren(
-  SolicitudesRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoardRoute: BoardRoute,
   InboxRoute: InboxRoute,
   RunsRoute: RunsRoute,
-  SolicitudesRoute: SolicitudesRouteWithChildren,
+  SolicitudesNuevaRoute: SolicitudesNuevaRoute,
+  SolicitudesIndexRoute: SolicitudesIndexRoute,
   TicketsIdPlanRoute: TicketsIdPlanRoute,
   TicketsIdIndexRoute: TicketsIdIndexRoute,
 }

@@ -38,8 +38,13 @@ export function eventToSentence(event: TicketEvent): Sentence {
   const type: string = event.type;
 
   switch (type) {
-    case 'ticket_received':
+    case 'ticket_received': {
+      const source = payload['source'] as { kind?: string } | undefined;
+      if (source?.kind === 'manual') {
+        return { ...base, text: payload['intake'] ? 'Solicitud recibida desde el formulario' : 'Ticket manual recibido' };
+      }
       return { ...base, text: 'Ticket recibido desde OpenProject' };
+    }
     case 'triage_started':
       return { ...base, text: 'La IA inició el triaje' };
     case 'triage_completed': {
@@ -123,6 +128,15 @@ export function eventToSentence(event: TicketEvent): Sentence {
     }
     case 'budget_exhausted':
       return { ...base, text: `Ejecución de ${runKindLabel(payload)} detenida: presupuesto agotado` };
+    case 'requester_questions_asked': {
+      const round = num(payload['round']);
+      const count = Array.isArray(payload['questions']) ? payload['questions'].length : undefined;
+      return { ...base, text: count !== undefined && round !== undefined ? `La IA hizo ${count} preguntas al solicitante (ronda ${round})` : 'La IA hizo preguntas al solicitante' };
+    }
+    case 'requester_answers_submitted': {
+      const round = num(payload['round']);
+      return { ...base, text: round !== undefined ? `${whoCapitalized} respondió las preguntas de la ronda ${round}` : `${whoCapitalized} respondió las preguntas del solicitante` };
+    }
     case 'op_sync_posted':
       return { ...base, text: 'Actualización publicada en OpenProject' };
     case 'ticket_updated_from_op': {

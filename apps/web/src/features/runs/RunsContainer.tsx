@@ -5,6 +5,7 @@ import { useRuns } from '@/app/queries';
 import { es } from '@/i18n/es';
 import { runFailureReasonLabels, runKindLabels, runStatusLabels } from '@/i18n/labels';
 import { formatAbsolute, formatCost, formatDuration, formatTokens } from '@/lib/format';
+import { useRedirectRequesterAway } from '@/lib/route-guards';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -27,8 +28,11 @@ export function runDuration(run: RunDto, now = new Date()): string {
 }
 
 export function RunsContainer() {
+  const hideForRequester = useRedirectRequesterAway('/solicitudes');
   const runs = useRuns();
   const [selected, setSelected] = useState<RunDto | null>(null);
+
+  if (hideForRequester) return null;
 
   return (
     <div>

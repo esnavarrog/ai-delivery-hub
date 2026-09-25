@@ -4,6 +4,7 @@ import { es } from '@/i18n/es';
 import { ticketPriorityLabels } from '@/i18n/labels';
 import { cn } from '@/lib/utils';
 import { ActorAvatar } from '@/ui/actor-avatar';
+import { Badge } from '@/ui/badge';
 import { FlagChips } from '@/ui/flag-chips';
 import { RelativeTime } from '@/ui/relative-time';
 import { RiskBadge } from '@/ui/risk-badge';
@@ -39,6 +40,11 @@ export function TicketCard({ ticket, selected, onOpen }: { ticket: TicketSnapsho
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <StateChip state={ticket.state} />
         <RiskBadge tier={ticket.riskTier} />
+        {ticket.riceScore !== undefined ? (
+          <Badge variant="outline" aria-label={es.rice.badgeAria(ticket.riceScore)}>
+            {es.rice.badge(ticket.riceScore)}
+          </Badge>
+        ) : null}
         {ticket.targetRepo ? (
           <span className="inline-flex items-center gap-1">
             <GitBranch className="size-3" aria-hidden="true" />

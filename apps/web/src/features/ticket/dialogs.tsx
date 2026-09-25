@@ -1,13 +1,15 @@
 import type { ApproveBody, ConfirmTriageBody, DuplicateBody, RequestChangesBody } from '@ai-delivery-hub/contracts';
-import { RiskTier, TicketCategory, type TicketSnapshot } from '@ai-delivery-hub/domain';
+import { Confidence, Effort, RiskTier, riceScore, TicketCategory, type RiceInput, type TicketSnapshot } from '@ai-delivery-hub/domain';
 import { useState } from 'react';
 import { es } from '@/i18n/es';
-import { riskTierLabels, ticketCategoryLabels } from '@/i18n/labels';
+import { confidenceLabel, effortLabels, riskTierLabels, ticketCategoryLabels } from '@/i18n/labels';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Textarea } from '@/ui/textarea';
+
+const CONFIDENCE_OPTIONS: readonly Confidence[] = [0.5, 0.8, 1];
 
 interface BaseDialogProps {
   open: boolean;
@@ -168,12 +170,31 @@ export function ApproveDialog({ open, busy, onOpenChange, login, onConfirm }: Ba
   );
 }
 
-/** Editable override of the AI triage; only changed fields are sent. */
-export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, onConfirm }: BaseDialogProps & { ticket: TicketSnapshot; repos: readonly string[]; onConfirm: (body: ConfirmTriageBody) => void }) {
+/**
+ * Editable override of the AI triage; only changed fields are sent. `initialScores` (the ticket's
+ * effective RICE inputs: the snapshot's own if triage already confirmed once, else the latest
+ * assessment's management lens) drives an optional value/reach/confidence/effort override with a
+ * live-recomputed RICE readout; omitted entirely when the ticket has no assessment yet.
+ */
+export function ConfirmTriageDialog({
+  open,
+  busy,
+  onOpenChange,
+  ticket,
+  repos,
+  initialScores,
+  onConfirm,
+}: BaseDialogProps & { ticket: TicketSnapshot; repos: readonly string[]; initialScores?: RiceInput; onConfirm: (body: ConfirmTriageBody) => void }) {
   const [category, setCategory] = useState<string>(ticket.category ?? '');
   const [risk, setRisk] = useState<string>(ticket.riskTier ?? '');
   const [repo, setRepo] = useState<string>(ticket.targetRepo ?? '');
+  const [value, setValue] = useState<number>(initialScores?.value ?? 3);
+  const [reach, setReach] = useState<number>(initialScores?.reach ?? 3);
+  const [confidence, setConfidence] = useState<Confidence>(initialScores?.confidence ?? 0.8);
+  const [effort, setEffort] = useState<Effort>(initialScores?.effort ?? 'M');
   const repoOptions = Array.from(new Set([...(ticket.targetRepo ? [ticket.targetRepo] : []), ...repos]));
+  const currentScores: RiceInput = { value, reach, confidence, effort };
+  const currentRice = riceScore(currentScores);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -192,6 +213,15 @@ export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, o
             if (cat.success && cat.data !== ticket.category) body.category = cat.data;
             if (tier.success && tier.data !== ticket.riskTier) body.riskTier = tier.data;
             if (repo && repo !== ticket.targetRepo) body.targetRepo = repo;
+            if (
+              initialScores &&
+              (currentScores.value !== initialScores.value ||
+                currentScores.reach !== initialScores.reach ||
+                currentScores.confidence !== initialScores.confidence ||
+                currentScores.effort !== initialScores.effort)
+            ) {
+              body.scores = currentScores;
+            }
             onConfirm(body);
           }}
         >
@@ -244,6 +274,74 @@ export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, o
               <Input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder={es.dialogs.confirmTriage.repositoryPlaceholder} aria-label={es.dialogs.confirmTriage.repositoryLabel} />
             )}
           </label>
+          {initialScores ? (
+            <div className="flex flex-col gap-2 rounded-lg border p-3">
+              <span className="text-sm font-medium">{es.dialogs.confirmTriage.scoresHeading}</span>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1 text-sm">
+                  {es.dialogs.confirmTriage.valueLabel}
+                  <Select value={String(value)} onValueChange={(v) => setValue(Number(v))}>
+                    <SelectTrigger aria-label={es.dialogs.confirmTriage.valueLabel}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  {es.dialogs.confirmTriage.reachLabel}
+                  <Select value={String(reach)} onValueChange={(v) => setReach(Number(v))}>
+                    <SelectTrigger aria-label={es.dialogs.confirmTriage.reachLabel}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  {es.dialogs.confirmTriage.confidenceLabel}
+                  <Select value={String(confidence)} onValueChange={(v) => setConfidence(Number(v) as Confidence)}>
+                    <SelectTrigger aria-label={es.dialogs.confirmTriage.confidenceLabel}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONFIDENCE_OPTIONS.map((c) => (
+                        <SelectItem key={c} value={String(c)}>
+                          {confidenceLabel(c)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  {es.dialogs.confirmTriage.effortLabel}
+                  <Select value={effort} onValueChange={(v) => setEffort(v as Effort)}>
+                    <SelectTrigger aria-label={es.dialogs.confirmTriage.effortLabel}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Effort.options.map((e) => (
+                        <SelectItem key={e} value={e}>
+                          {effortLabels[e]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+              </div>
+              <p className="text-sm text-muted-foreground">{es.dialogs.confirmTriage.riceLive(currentRice)}</p>
+            </div>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {es.dialogs.cancel}

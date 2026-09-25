@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useIngestFetch, useTicketList } from '@/app/queries';
 import { es } from '@/i18n/es';
 import { groupInbox } from '@/lib/inbox';
+import { useRedirectRequesterAway } from '@/lib/route-guards';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -17,6 +18,7 @@ import { InboxList } from './InboxList';
 type Tab = 'waiting' | 'watching';
 
 export function InboxContainer() {
+  const hideForRequester = useRedirectRequesterAway('/solicitudes');
   const navigate = useNavigate();
   const all = useTicketList();
   const waiting = useTicketList({ waitingOn: 'me' });
@@ -46,6 +48,8 @@ export function InboxContainer() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   });
+
+  if (hideForRequester) return null;
 
   if (all.isError || waiting.isError) {
     const err = all.error ?? waiting.error;

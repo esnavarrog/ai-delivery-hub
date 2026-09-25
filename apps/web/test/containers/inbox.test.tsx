@@ -85,4 +85,11 @@ describe('InboxContainer', () => {
     await userEvent.click(screen.getByRole('button', { name: /Traer/i }));
     expect(await screen.findByText(/bad\.md: title is required/)).toBeInTheDocument();
   });
+
+  it('redirects a requester to /solicitudes instead of showing the inbox', async () => {
+    server.use(http.get('*/api/me', () => HttpResponse.json({ login: 'esteban', role: 'requester' } satisfies MeResponse)));
+    const { router } = renderApp(<InboxContainer />, { path: '/inbox' });
+    await waitFor(() => expect(router.state.location.pathname).toBe('/solicitudes'));
+    expect(screen.queryByRole('heading', { name: 'Bandeja' })).not.toBeInTheDocument();
+  });
 });

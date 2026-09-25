@@ -6,11 +6,13 @@ import { useMe, useTicket } from '@/app/queries';
 import { es } from '@/i18n/es';
 import { useTicketStream } from '@/app/use-ticket-stream';
 import { resolveActions } from '@/lib/action-resolver';
+import { effectiveScores, latestAssessment } from '@/lib/assessment';
 import { Button } from '@/ui/button';
 import { EmptyState } from '@/ui/empty-state';
 import { Skeleton } from '@/ui/skeleton';
 import { ActionPanel } from './ActionPanel';
 import { AnswerQuestionsDialog, latestQuestions } from './AnswerQuestionsDialog';
+import { AssessmentCard } from './AssessmentCard';
 import { ApproveDialog, ConfirmTriageDialog, ReasonDialog, RequestChangesDialog } from './dialogs';
 import { RiskBanner } from './RiskBanner';
 import { TicketHeader } from './TicketHeader';
@@ -77,6 +79,8 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
   const { ticket } = detail;
   const planHref = (ref: string) => `/tickets/${encodeURIComponent(ticketId)}/plan?version=${encodeURIComponent(ref)}`;
   const pendingQuestions = latestQuestions(detail.events);
+  const assessment = latestAssessment(ticket, detail.events);
+  const initialScores = effectiveScores(ticket, assessment?.assessment);
 
   return (
     <div className="flex flex-col gap-4">
@@ -92,6 +96,7 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         }
       />
       <RiskBanner tier={ticket.riskTier} />
+      {role !== 'requester' ? <AssessmentCard ticket={ticket} events={detail.events} /> : null}
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
         <section aria-label={es.ticketPage.timelineAria} className="min-w-0">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">{es.ticketPage.timelineHeading}</h2>
@@ -118,6 +123,7 @@ export function TicketPageContainer({ ticketId }: { ticketId: string }) {
         onOpenChange={(o) => setDialog(o ? 'confirm_triage' : null)}
         ticket={ticket}
         repos={[]}
+        {...(initialScores ? { initialScores } : {})}
         onConfirm={(body) => send({ kind: 'confirm_triage', body })}
       />
       <ReasonDialog

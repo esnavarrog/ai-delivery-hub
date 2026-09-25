@@ -18,6 +18,9 @@ const NAV = [
   { to: '/runs', label: es.nav.runs },
 ] as const;
 
+/** Lead/admin/dev pages; a requester never sees these in the nav (cosmetic only, the server enforces access). */
+const REVIEWER_ONLY_PATHS: ReadonlySet<(typeof NAV)[number]['to']> = new Set(['/inbox', '/board', '/runs']);
+
 const CUSTOM = '__custom__';
 
 export function Header() {
@@ -26,16 +29,17 @@ export function Header() {
   const known = DEV_USERS.some((u) => u.login === login);
   const [custom, setCustom] = useState(!known && login.length > 0);
   const [draft, setDraft] = useState(login);
+  const nav = me.data?.role === 'requester' ? NAV.filter((item) => !REVIEWER_ONLY_PATHS.has(item.to)) : NAV;
 
   return (
     <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2">
-        <Link to="/inbox" className="inline-flex items-center gap-2 font-semibold" aria-label={es.app.homeAriaLabel}>
+        <Link to="/" className="inline-flex items-center gap-2 font-semibold" aria-label={es.app.homeAriaLabel}>
           <Bot className="size-5 text-primary" aria-hidden="true" />
           {es.app.name}
         </Link>
         <nav aria-label={es.nav.main} className="flex items-center gap-1">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.to}
               to={item.to}

@@ -145,6 +145,15 @@ describe('TicketCommands', () => {
       await expect(ownedCommands.confirmTriage('t-2', bob, { riskTier: 'low' })).rejects.toBeInstanceOf(TransitionDeniedError);
       expect((await ownedCommands.confirmTriage('t-2', ana, { riskTier: 'low' })).snapshot.riskTier).toBe('low');
     });
+    it('passes a score override through to the triage_confirmed payload and recomputes RICE on the snapshot', async () => {
+      await store.append('t-1', 0, awaitingOwnerStream('t-1'));
+      const scores = { value: 5, reach: 4, confidence: 1 as const, effort: 'S' as const };
+      const result = await commands.confirmTriage('t-1', ana, { scores });
+      expect(result.snapshot).toMatchObject({ value: 5, reach: 4, confidence: 1, effort: 'S', riceScore: 20 });
+      const last = (await store.load('t-1')).at(-1)!;
+      expect(last.type).toBe('triage_confirmed');
+      expect(last.payload).toEqual({ scores });
+    });
   });
 
   describe('plan comments', () => {

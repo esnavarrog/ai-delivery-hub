@@ -92,6 +92,7 @@ export class TicketCommands {
     if (body.category !== undefined) payload['category'] = body.category;
     if (body.riskTier !== undefined) payload['riskTier'] = body.riskTier;
     if (body.targetRepo !== undefined) payload['targetRepo'] = body.targetRepo;
+    if (body.scores !== undefined) payload['scores'] = body.scores;
     return this.simple(ticketId, user, 'triage_confirmed', { payload });
   }
 

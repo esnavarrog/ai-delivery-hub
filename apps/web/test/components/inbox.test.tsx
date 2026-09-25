@@ -23,6 +23,18 @@ describe('InboxList', () => {
     expect(screen.getByText('Necesita información')).toBeInTheDocument();
   });
 
+  it('shows a RICE score badge when the ticket has one, and nothing when it does not', () => {
+    render(
+      <InboxList
+        tickets={[ticket({ id: 't-rice', riceScore: 4.8 }), ticket({ id: 't-none' })]}
+        selectedIndex={0}
+        onOpen={vi.fn()}
+        emptyTitle="x"
+      />,
+    );
+    expect(screen.getByLabelText('Puntaje RICE 4.8')).toHaveTextContent('RICE 4.8');
+  });
+
   it('shows an OP source badge for an OpenProject ticket and a Manual badge for a manual ticket', () => {
     render(
       <InboxList

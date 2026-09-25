@@ -306,6 +306,10 @@ describe('HTTP app', () => {
       expect(unknownRepo.status).toBe(400);
       expect((await json(unknownRepo)).error.code).toBe('bad_request');
       expect((await app.request('/api/tickets/a/confirm-triage', post('ana', { riskTier: 'extreme' }))).status).toBe(400);
+
+      const withScores = await app.request('/api/tickets/a/confirm-triage', post('ana', { scores: { value: 5, reach: 4, confidence: 1, effort: 'S' } }));
+      expect(withScores.status).toBe(200);
+      expect((await json(withScores)).ticket).toMatchObject({ value: 5, reach: 4, confidence: 1, effort: 'S', riceScore: 20 });
     });
 
     it('comments: add returns the comment and the snapshot; resolve clears it; approve is blocked while unresolved', async () => {

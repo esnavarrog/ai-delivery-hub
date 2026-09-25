@@ -1,4 +1,4 @@
-import type { ActorKind, Department, Frequency, Role, RiskTier, RunFailureReason, TicketCategory, TicketFlag, TicketPriority, TicketState } from '@ai-delivery-hub/domain';
+import type { ActorKind, Confidence, Department, Effort, Frequency, Role, RiskTier, RunFailureReason, TicketCategory, TicketFlag, TicketPriority, TicketState } from '@ai-delivery-hub/domain';
 import type { RunKind, RunStatus } from '@ai-delivery-hub/contracts';
 
 /** Spanish labels for every domain enum rendered in the UI. Keys stay the English enum values (contracts unchanged). */
@@ -101,4 +101,34 @@ export const frequencyLabels: Record<Frequency, string> = {
   weekly: 'Semanal',
   monthly: 'Mensual',
   occasional: 'Ocasional',
+};
+
+export const effortLabels: Record<Effort, string> = {
+  S: 'Pequeño',
+  M: 'Mediano',
+  L: 'Grande',
+  XL: 'Extra grande',
+};
+
+/** Keyed by the numeric `Confidence` value (0.5 / 0.8 / 1) as a string, since object keys are always strings. */
+export const confidenceLabels: Record<string, string> = {
+  '0.5': '50%',
+  '0.8': '80%',
+  '1': '100%',
+};
+
+export function confidenceLabel(c: Confidence): string {
+  return confidenceLabels[String(c)] ?? String(c);
+}
+
+export const feasibilityLabels: Record<'feasible' | 'uncertain' | 'infeasible', string> = {
+  feasible: 'Factible',
+  uncertain: 'Incierta',
+  infeasible: 'No factible',
+};
+
+export const recommendationLabels: Record<'approve' | 'reject' | 'needs_info', string> = {
+  approve: 'Aprobar',
+  reject: 'Rechazar',
+  needs_info: 'Necesita más información',
 };

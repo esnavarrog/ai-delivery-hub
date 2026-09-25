@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTicketList } from '@/app/queries';
 import { es } from '@/i18n/es';
 import { sortTickets } from '@/lib/inbox';
+import { useRedirectRequesterAway } from '@/lib/route-guards';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { EmptyState } from '@/ui/empty-state';
@@ -35,6 +36,7 @@ function FilterSelect({ label, allLabel, value, options, onChange }: { label: st
 }
 
 export function BoardContainer() {
+  const hideForRequester = useRedirectRequesterAway('/solicitudes');
   const navigate = useNavigate();
   const list = useTicketList();
   const [filters, setFilters] = useState<BoardFilters>({});
@@ -49,6 +51,8 @@ export function BoardContainer() {
   );
   const columns = useMemo(() => buildColumns(applyFilters(tickets, filters)), [tickets, filters]);
   const open = (t: TicketSnapshot) => void navigate({ to: '/tickets/$id', params: { id: t.id } });
+
+  if (hideForRequester) return null;
 
   return (
     <div>

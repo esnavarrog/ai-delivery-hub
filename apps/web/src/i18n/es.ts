@@ -176,6 +176,7 @@ export const es = {
     recommendationLabel: 'Recomendación',
     rationaleLabel: 'Justificación',
     none: 'Ninguno',
+    noneFeminine: 'Ninguna',
   },
   dialogs: {
     cancel: 'Cancelar',

@@ -68,12 +68,14 @@ export function usePlan(id: string) {
   return useQuery({ queryKey: keys.plan(login, id), queryFn: () => api.get<TicketPlanResponse>(`/api/tickets/${encodeURIComponent(id)}/plan`), enabled: login.length > 0 });
 }
 
+/** `GET /api/runs` 403s for a `requester`; skip the request entirely once the role is known. */
 export function useRuns(ticketId?: string) {
   const login = useCurrentLogin();
+  const me = useMe();
   return useQuery({
     queryKey: keys.runs(login, ticketId),
     queryFn: () => api.get<RunsResponse>(`/api/runs${qs({ ticketId })}`),
-    enabled: login.length > 0,
+    enabled: login.length > 0 && me.data !== undefined && me.data.role !== 'requester',
     refetchInterval: 10_000,
   });
 }

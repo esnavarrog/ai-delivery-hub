@@ -63,7 +63,7 @@ export function AssessmentCard({ ticket, events }: { ticket: TicketSnapshot; eve
                   ))}
                 </ul>
               ) : (
-                es.assessmentCard.none
+                es.assessmentCard.noneFeminine
               )}
             </dd>
           </dl>
@@ -95,7 +95,7 @@ export function AssessmentCard({ ticket, events }: { ticket: TicketSnapshot; eve
                   ))}
                 </ul>
               ) : (
-                es.assessmentCard.none
+                es.assessmentCard.noneFeminine
               )}
             </dd>
           </dl>

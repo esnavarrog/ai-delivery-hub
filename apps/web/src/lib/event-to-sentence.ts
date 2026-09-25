@@ -131,7 +131,8 @@ export function eventToSentence(event: TicketEvent): Sentence {
     case 'requester_questions_asked': {
       const round = num(payload['round']);
       const count = Array.isArray(payload['questions']) ? payload['questions'].length : undefined;
-      return { ...base, text: count !== undefined && round !== undefined ? `La IA hizo ${count} preguntas al solicitante (ronda ${round})` : 'La IA hizo preguntas al solicitante' };
+      const noun = count === 1 ? 'pregunta' : 'preguntas';
+      return { ...base, text: count !== undefined && round !== undefined ? `La IA hizo ${count} ${noun} al solicitante (ronda ${round})` : 'La IA hizo preguntas al solicitante' };
     }
     case 'requester_answers_submitted': {
       const round = num(payload['round']);

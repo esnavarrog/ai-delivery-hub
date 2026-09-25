@@ -64,6 +64,13 @@ describe('eventToSentence', () => {
     expect(s.text).toBe('La IA hizo 2 preguntas al solicitante (ronda 1)');
   });
 
+  it('uses the singular form for a single question in requester_questions_asked', () => {
+    const s = eventToSentence(
+      event({ type: 'requester_questions_asked', actor: { kind: 'ai', id: 'claude' }, payload: { round: 1, questions: [{ id: 'q1', text: 'Which region?' }] } }),
+    );
+    expect(s.text).toBe('La IA hizo 1 pregunta al solicitante (ronda 1)');
+  });
+
   it('names the actor and round on requester_answers_submitted', () => {
     const s = eventToSentence(
       event({ type: 'requester_answers_submitted', actor: { kind: 'dev', id: 'Esteban' }, payload: { round: 1, answers: [{ questionId: 'q1', text: 'LatAm' }] } }),

@@ -56,6 +56,19 @@ describe('AssessmentCard', () => {
     expect(screen.getByText(/Evaluación provisional/)).toBeInTheDocument();
   });
 
+  it('uses grammatically correct gender for each empty list: "Ninguna" for questions/dependencies, "Ninguno" for acceptance criteria/risks', () => {
+    const emptyAssessment: TriageAssessment = {
+      functional: { clarity: 3, acceptanceCriteria: [], questions: [] },
+      technical: { feasibility: 'feasible', risks: [], dependencies: [] },
+      management: { value: 3, reach: 3, confidence: 0.8, effort: 'M', recommendation: 'approve', rationale: 'x' },
+    };
+    const t = ticket({ state: 'triaged' });
+    const events = [event({ type: 'triage_completed', seq: 1, payload: triageCompletedPayload({ assessment: emptyAssessment }) })];
+    render(<AssessmentCard ticket={t} events={events} />);
+    expect(screen.getAllByText('Ninguno')).toHaveLength(2); // acceptance criteria, risks
+    expect(screen.getAllByText('Ninguna')).toHaveLength(2); // questions, dependencies
+  });
+
   it('renders nothing when there is no assessment (e.g. an OP ticket triaged before this feature)', () => {
     const t = ticket({ state: 'triaged' });
     const events = [event({ type: 'triage_completed', seq: 1, payload: triageCompletedPayload() })];

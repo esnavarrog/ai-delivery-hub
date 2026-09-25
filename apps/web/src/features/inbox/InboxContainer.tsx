@@ -1,8 +1,12 @@
 import type { TicketSnapshot } from '@ai-delivery-hub/domain';
 import { useNavigate } from '@tanstack/react-router';
+import { RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useTicketList } from '@/app/queries';
+import { useIngestFetch, useTicketList } from '@/app/queries';
+import { es } from '@/i18n/es';
 import { groupInbox } from '@/lib/inbox';
+import { useRedirectRequesterAway } from '@/lib/route-guards';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
 import { EmptyState } from '@/ui/empty-state';
@@ -14,9 +18,11 @@ import { InboxList } from './InboxList';
 type Tab = 'waiting' | 'watching';
 
 export function InboxContainer() {
+  const hideForRequester = useRedirectRequesterAway('/solicitudes');
   const navigate = useNavigate();
   const all = useTicketList();
   const waiting = useTicketList({ waitingOn: 'me' });
+  const ingestFetch = useIngestFetch();
   const [tab, setTab] = useState<Tab>('waiting');
   const [selected, setSelected] = useState(0);
 
@@ -43,14 +49,16 @@ export function InboxContainer() {
     return () => window.removeEventListener('keydown', handler);
   });
 
+  if (hideForRequester) return null;
+
   if (all.isError || waiting.isError) {
     const err = all.error ?? waiting.error;
     return (
-      <EmptyState title="Inbox not available">
-        {err instanceof Error ? err.message : 'Could not load tickets.'}
+      <EmptyState title={es.inbox.notAvailableTitle}>
+        {err instanceof Error ? err.message : es.inbox.couldNotLoad}
         <div className="mt-3">
           <Button variant="outline" onClick={() => void Promise.all([all.refetch(), waiting.refetch()])}>
-            Retry
+            {es.inbox.retry}
           </Button>
         </div>
       </EmptyState>
@@ -59,25 +67,34 @@ export function InboxContainer() {
 
   return (
     <div>
-      <PageHeader title="Inbox" description="Decisions that need you first, then everything you follow. Use j / k to move and Enter to open." />
+      <PageHeader
+        title={es.inbox.title}
+        description={es.inbox.description}
+        actions={
+          <Button variant="outline" onClick={() => ingestFetch.mutate()} disabled={ingestFetch.isPending} aria-label={es.inbox.fetchButtonAria}>
+            <RefreshCw className={cn('size-4', ingestFetch.isPending && 'animate-spin')} aria-hidden="true" />
+            {ingestFetch.isPending ? es.inbox.fetching : es.inbox.fetchButton}
+          </Button>
+        }
+      />
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-        <TabsList aria-label="Inbox tabs">
+        <TabsList aria-label={es.inbox.tabsAriaLabel}>
           <TabsTrigger value="waiting">
-            Waiting on you
-            <Badge variant={groups.waitingOnYou.length > 0 ? 'default' : 'secondary'} className="ml-1 min-w-5 justify-center px-1.5" aria-label={`${groups.waitingOnYou.length} waiting on you`}>
+            {es.inbox.waitingTab}
+            <Badge variant={groups.waitingOnYou.length > 0 ? 'default' : 'secondary'} className="ml-1 min-w-5 justify-center px-1.5" aria-label={es.inbox.waitingBadgeAria(groups.waitingOnYou.length)}>
               {waiting.isPending ? '…' : groups.waitingOnYou.length}
             </Badge>
           </TabsTrigger>
           <TabsTrigger value="watching">
-            Watching
+            {es.inbox.watchingTab}
             <span className="ml-1 text-muted-foreground">{all.isPending ? '' : groups.watching.length}</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="waiting" className="mt-4">
-          {waiting.isPending ? <ListSkeleton /> : <InboxList tickets={groups.waitingOnYou} selectedIndex={selected} onOpen={open} emptyTitle="Nothing waiting on you" />}
+          {waiting.isPending ? <ListSkeleton /> : <InboxList tickets={groups.waitingOnYou} selectedIndex={selected} onOpen={open} emptyTitle={es.inbox.nothingWaiting} />}
         </TabsContent>
         <TabsContent value="watching" className="mt-4">
-          {all.isPending ? <ListSkeleton /> : <InboxList tickets={groups.watching} selectedIndex={selected} onOpen={open} emptyTitle="Nothing else in flight" />}
+          {all.isPending ? <ListSkeleton /> : <InboxList tickets={groups.watching} selectedIndex={selected} onOpen={open} emptyTitle={es.inbox.nothingWatching} />}
         </TabsContent>
       </Tabs>
     </div>

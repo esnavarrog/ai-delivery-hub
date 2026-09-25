@@ -1,4 +1,6 @@
 import {
+  ClarificationAnswer,
+  ManualIntake,
   Plan,
   Role,
   RunFailureReason,
@@ -146,6 +148,25 @@ export type DuplicateBody = z.infer<typeof DuplicateBody>;
 export const FlagBody = z.object({ flag: TicketFlag, set: z.boolean(), reason: Reason.optional() });
 export type FlagBody = z.infer<typeof FlagBody>;
 
+/** Body of `POST /api/tickets`: a requester (or lead/admin, filing on someone's behalf) raises a manual feature request. */
+export const CreateTicketBody = z.object({
+  title: z.string().trim().min(1),
+  description: z.string().trim().min(1),
+  intake: ManualIntake,
+});
+export type CreateTicketBody = z.infer<typeof CreateTicketBody>;
+
+/** Response of `POST /api/tickets`. */
+export const CreateTicketResponse = z.object({ ticket: TicketSnapshot });
+export type CreateTicketResponse = z.infer<typeof CreateTicketResponse>;
+
+/** Body of `POST /api/tickets/:id/answers`: the requester (or lead/admin) answers the AI's clarifying questions. */
+export const SubmitAnswersBody = z.object({
+  round: z.number().int().min(1),
+  answers: z.array(ClarificationAnswer).min(1),
+});
+export type SubmitAnswersBody = z.infer<typeof SubmitAnswersBody>;
+
 export const AddCommentBody = z.object({
   sectionPath: SectionPath,
   body: z.string().trim().min(1).max(5000),
@@ -163,3 +184,29 @@ export type CommentResponse = z.infer<typeof CommentResponse>;
 
 export const EnqueuedResponse = z.object({ ticket: TicketSnapshot, enqueued: RunKind });
 export type EnqueuedResponse = z.infer<typeof EnqueuedResponse>;
+
+// ---- Ingest -----------------------------------------------------------------
+
+export const OpenProjectFetchSummary = z.object({
+  fetched: z.number().int().min(0),
+  created: z.number().int().min(0),
+  updated: z.number().int().min(0),
+});
+export type OpenProjectFetchSummary = z.infer<typeof OpenProjectFetchSummary>;
+
+export const ObsidianImportError = z.object({ file: z.string().min(1), message: z.string().min(1) });
+export type ObsidianImportError = z.infer<typeof ObsidianImportError>;
+
+export const ObsidianImportSummary = z.object({
+  imported: z.number().int().min(0),
+  skipped: z.number().int().min(0),
+  errors: z.array(ObsidianImportError),
+});
+export type ObsidianImportSummary = z.infer<typeof ObsidianImportSummary>;
+
+/** Response of `POST /api/ingest/fetch`. `obsidian` is `null` when `OBSIDIAN_VAULT_DIR` is unset. */
+export const FetchResponse = z.object({
+  openproject: OpenProjectFetchSummary,
+  obsidian: ObsidianImportSummary.nullable(),
+});
+export type FetchResponse = z.infer<typeof FetchResponse>;

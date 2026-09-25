@@ -11,6 +11,7 @@ describe('TicketState', () => {
     expect(TicketState.options).toEqual([
       'received',
       'triaging',
+      'awaiting_requester',
       'triaged',
       'awaiting_owner',
       'planning',

@@ -1,5 +1,7 @@
 import type { RunDto } from '@ai-delivery-hub/contracts';
 import { isTerminal, MAX_PLAN_VERSIONS_WITHOUT_FEEDBACK, type Role, type TicketSnapshot } from '@ai-delivery-hub/domain';
+import { es } from '@/i18n/es';
+import { runFailureReasonLabels, runStatusLabels, ticketStateLabels } from '@/i18n/labels';
 import { formatElapsed, humanize } from './format';
 
 export type ActionId =
@@ -16,7 +18,8 @@ export type ActionId =
   | 'stop'
   | 'pause'
   | 'resume'
-  | 'add_comment';
+  | 'add_comment'
+  | 'answer_questions';
 
 export interface ResolvedAction {
   id: ActionId;
@@ -36,6 +39,7 @@ export type InfoKind =
   | 'approved'
   | 'closed'
   | 'read_only'
+  | 'needs_answer'
   | 'later_phase';
 
 export interface ActionInfo {
@@ -70,8 +74,8 @@ const OWNER_EQUIVALENT_ROLES: readonly Role[] = ['lead', 'admin'];
 const action = (id: ActionId, label: string, extra: Partial<ResolvedAction> = {}): ResolvedAction => ({ id, label, ...extra });
 
 const CLOSE_DECISIONS: ResolvedAction[] = [
-  action('duplicate', 'Mark as duplicate', { destructive: true }),
-  action('already_implemented', 'Already implemented', { destructive: true }),
+  action('duplicate', es.actions.markDuplicate, { destructive: true }),
+  action('already_implemented', es.actions.alreadyImplemented, { destructive: true }),
 ];
 
 function runFailed(run: RunDto | null): run is RunDto {
@@ -79,14 +83,15 @@ function runFailed(run: RunDto | null): run is RunDto {
 }
 
 function failureMessage(run: RunDto): string {
-  const reason = run.failureReason ? humanize(run.failureReason) : 'unknown reason';
-  return run.errorMessage ? `${humanize(run.kind, true)} failed (${reason}): ${run.errorMessage}` : `${humanize(run.kind, true)} failed: ${reason}`;
+  const reason = run.failureReason ? runFailureReasonLabels[run.failureReason] : es.actionInfo.unknownReason;
+  const kindLabel = humanize(run.kind, true);
+  return run.errorMessage ? `${kindLabel} falló (${reason}): ${run.errorMessage}` : `${kindLabel} falló: ${reason}`;
 }
 
 function replanDisabledReason(t: TicketSnapshot): string | undefined {
   if (t.planVersionCount < MAX_PLAN_VERSIONS_WITHOUT_FEEDBACK) return undefined;
   const fed = t.lastHumanCommentAt !== undefined && (t.lastPlanVersionAt === undefined || t.lastHumanCommentAt > t.lastPlanVersionAt);
-  return fed ? undefined : `Already ${t.planVersionCount} plan versions; add a plan comment before asking for another one`;
+  return fed ? undefined : es.actionInfo.replanDisabled(t.planVersionCount);
 }
 
 /**
@@ -99,7 +104,7 @@ export function resolveActions({ ticket: t, role, login, latestRun, now }: Resol
   const canReview = isOwner || ownerEquivalent;
   const reviewer = REVIEWER_ROLES.includes(role);
   const paused = t.flags.includes('paused');
-  const owner = t.ownerUserId ?? 'the owner';
+  const owner = t.ownerUserId ?? 'la persona responsable';
 
   const plan = (info: ActionInfo, parts: Partial<Omit<ActionPlan, 'info'>> = {}): ActionPlan => ({
     more: [],
@@ -110,81 +115,97 @@ export function resolveActions({ ticket: t, role, login, latestRun, now }: Resol
   });
 
   if (isTerminal(t.state)) {
-    return plan({ kind: 'closed', title: `Closed: ${humanize(t.state)}`, message: 'This ticket is closed. No further actions are possible.' });
+    return plan({ kind: 'closed', title: es.actionInfo.closedTitle(ticketStateLabels[t.state]), message: es.actionInfo.closedMessage });
   }
 
-  // Requester and QA never drive the Phase 1 flow.
+  // Requester and QA never drive the Phase 1 flow, except a requester answering their own
+  // clarifying questions in `awaiting_requester`.
   if (!reviewer) {
-    const message =
-      role === 'requester'
-        ? 'You can follow the timeline, read the plan and add comments. A developer owns the decisions.'
-        : 'QA gates open in a later phase. You can follow the timeline and read the plan.';
+    const isRequesterOwner = role === 'requester' && t.requesterUserId !== undefined && t.requesterUserId === login;
+    if (t.state === 'awaiting_requester' && isRequesterOwner) {
+      return plan({
+        kind: 'needs_answer',
+        title: es.actionInfo.needsAnswerTitle,
+        message: es.actionInfo.needsAnswerMessage(t.pendingQuestionCount ?? 0),
+      }, { primary: action('answer_questions', es.actions.answerQuestions) });
+    }
+    const message = role === 'requester' ? es.actionInfo.readOnlyRequester : es.actionInfo.readOnlyQa;
     return plan(
-      { kind: 'read_only', title: 'Read only', message },
-      { secondary: t.planVersionCount > 0 ? action('add_comment', 'Add comment') : undefined },
+      { kind: 'read_only', title: es.actionInfo.readOnlyTitle, message },
+      { secondary: t.planVersionCount > 0 ? action('add_comment', es.actions.addComment) : undefined },
     );
   }
 
-  const tertiary = [paused ? action('resume', 'Resume AI') : action('pause', 'Pause AI')];
+  const tertiary = [paused ? action('resume', es.actions.resumeAi) : action('pause', es.actions.pauseAi)];
 
   switch (t.state) {
     case 'received':
       if (runFailed(latestRun)) {
         return plan(
-          { kind: 'failed', title: 'Triage failed', message: failureMessage(latestRun) },
-          { primary: action('retriage', 'Retry triage'), tertiary },
+          { kind: 'failed', title: es.actionInfo.triageFailedTitle, message: failureMessage(latestRun) },
+          { primary: action('retriage', es.actions.retryTriage), tertiary },
         );
       }
-      return plan({ kind: 'waiting', title: 'Waiting for AI triage', message: 'The scheduler will start triage shortly.' }, { tertiary });
+      return plan({ kind: 'waiting', title: es.actionInfo.waitingTriageTitle, message: es.actionInfo.waitingTriageMessage }, { tertiary });
 
     case 'triaging':
     case 'planning': {
-      const what = t.state === 'triaging' ? 'triage' : 'planning';
+      const what = t.state === 'triaging' ? 'triaje' : 'planificación';
       if (paused) {
         return plan(
-          { kind: 'paused', title: 'Paused', message: `Automated ${what} is blocked until someone resumes the ticket.` },
-          { primary: action('resume', 'Resume AI') },
+          { kind: 'paused', title: es.actionInfo.pausedTitle, message: es.actionInfo.pausedMessage(what) },
+          { primary: action('resume', es.actions.resumeAi) },
         );
       }
       const elapsed = latestRun ? formatElapsed(latestRun.startedAt, now) : formatElapsed(t.updatedAt, now);
-      const status = latestRun ? humanize(latestRun.status) : 'queued';
+      const status = latestRun ? runStatusLabels[latestRun.status] : es.actionInfo.queued;
       return plan(
-        { kind: 'ai_working', title: `AI is working on ${what}`, message: `AI is working · ${elapsed} · ${status}` },
-        { primary: action('stop', 'Stop AI', { destructive: true }) },
+        { kind: 'ai_working', title: es.actionInfo.aiWorkingTitle(what), message: es.actionInfo.aiWorkingMessage(elapsed, status) },
+        { primary: action('stop', es.actions.stopAi, { destructive: true }) },
       );
     }
 
     case 'triaged': {
       const mayConfirm = ownerEquivalent || isOwner;
       if (!mayConfirm) {
-        return plan({ kind: 'waiting', title: 'Waiting for a lead', message: 'A lead or admin confirms the AI triage before planning starts.' }, { tertiary });
+        return plan({ kind: 'waiting', title: es.actionInfo.waitingLeadTitle, message: es.actionInfo.waitingLeadMessage }, { tertiary });
       }
       return plan(
-        { kind: 'triage_suggestion', title: 'Confirm the AI triage', message: 'Review the suggested category, risk and repository. Confirm to continue or close the ticket.' },
-        { primary: action('confirm_triage', 'Confirm triage'), secondary: action('reject', 'Reject', { destructive: true }), more: CLOSE_DECISIONS, tertiary },
+        { kind: 'triage_suggestion', title: es.actionInfo.triageSuggestionTitle, message: es.actionInfo.triageSuggestionMessage },
+        { primary: action('confirm_triage', es.actions.confirmTriage), secondary: action('reject', es.actions.reject, { destructive: true }), more: CLOSE_DECISIONS, tertiary },
+      );
+    }
+
+    case 'awaiting_requester': {
+      if (!ownerEquivalent) {
+        return plan({ kind: 'waiting', title: es.actionInfo.waitingAnswerTitle, message: es.actionInfo.waitingAnswerMessage }, { tertiary });
+      }
+      return plan(
+        { kind: 'needs_answer', title: es.actionInfo.needsAnswerTitle, message: es.actionInfo.needsAnswerMessage(t.pendingQuestionCount ?? 0) },
+        { primary: action('answer_questions', es.actions.answerQuestions), tertiary },
       );
     }
 
     case 'awaiting_owner':
       return plan(
-        { kind: 'waiting', title: 'Needs an owner', message: 'Claim the ticket to own the plan review. Planning starts right after.' },
-        { primary: action('claim', 'Claim ticket'), tertiary },
+        { kind: 'waiting', title: es.actionInfo.needsOwnerTitle, message: es.actionInfo.needsOwnerMessage },
+        { primary: action('claim', es.actions.claimTicket), tertiary },
       );
 
     case 'plan_review': {
       if (!canReview) {
-        return plan({ kind: 'waiting', title: 'In review', message: `Waiting for ${owner} to review the plan.` }, { tertiary });
+        return plan({ kind: 'waiting', title: es.actionInfo.inReviewTitle, message: es.actionInfo.inReviewMessage(owner) }, { tertiary });
       }
       const unresolved = t.unresolvedCommentCount;
-      const approve = action('approve', 'Approve plan', {
-        ...(unresolved > 0 ? { disabledReason: `${unresolved} unresolved ${unresolved === 1 ? 'comment' : 'comments'} must be resolved first` } : {}),
+      const approve = action('approve', es.actions.approvePlan, {
+        ...(unresolved > 0 ? { disabledReason: es.actionInfo.unresolvedCommentsDisabled(unresolved) } : {}),
       });
       return plan(
-        { kind: 'plan_review', title: 'Review the plan', message: unresolved > 0 ? `${unresolved} unresolved comment(s). Resolve them or request changes.` : 'Approve to close Phase 1, or request changes for a new version.' },
+        { kind: 'plan_review', title: es.actionInfo.reviewPlanTitle, message: unresolved > 0 ? es.actionInfo.reviewPlanUnresolved(unresolved) : es.actionInfo.reviewPlanReady },
         {
           primary: approve,
-          secondary: action('request_changes', 'Request changes'),
-          more: [action('reject', 'Reject', { destructive: true }), ...CLOSE_DECISIONS],
+          secondary: action('request_changes', es.actions.requestChanges),
+          more: [action('reject', es.actions.reject, { destructive: true }), ...CLOSE_DECISIONS],
           tertiary,
           requiresSecondApprover: t.riskTier === 'high',
         },
@@ -193,15 +214,15 @@ export function resolveActions({ ticket: t, role, login, latestRun, now }: Resol
 
     case 'plan_changes_requested': {
       if (!canReview) {
-        return plan({ kind: 'waiting', title: 'Changes requested', message: `Waiting for ${owner} to ask for a new plan.` }, { tertiary });
+        return plan({ kind: 'waiting', title: es.actionInfo.changesRequestedTitle, message: es.actionInfo.changesRequestedWaiting(owner) }, { tertiary });
       }
       const disabledReason = replanDisabledReason(t);
       const info: ActionInfo = runFailed(latestRun)
-        ? { kind: 'failed', title: 'Planning failed', message: failureMessage(latestRun) }
-        : { kind: 'plan_review', title: 'Changes requested', message: 'Ask the AI for a new plan version or close the ticket.' };
+        ? { kind: 'failed', title: es.actionInfo.planningFailedTitle, message: failureMessage(latestRun) }
+        : { kind: 'plan_review', title: es.actionInfo.changesRequestedTitle, message: es.actionInfo.changesRequestedMessage };
       return plan(info, {
-        primary: action('replan', 'Re-plan', disabledReason ? { disabledReason } : {}),
-        secondary: action('reject', 'Reject', { destructive: true }),
+        primary: action('replan', es.actions.replan, disabledReason ? { disabledReason } : {}),
+        secondary: action('reject', es.actions.reject, { destructive: true }),
         more: CLOSE_DECISIONS,
         tertiary,
       });
@@ -209,11 +230,11 @@ export function resolveActions({ ticket: t, role, login, latestRun, now }: Resol
 
     case 'plan_approved':
       return plan(
-        { kind: 'approved', title: 'What happens next', message: 'The plan is approved. Implementation by the AI arrives in Phase 2; until then the ticket stays here.' },
-        { secondary: canReview ? action('reopen', 'Reopen plan') : undefined, tertiary },
+        { kind: 'approved', title: es.actionInfo.approvedTitle, message: es.actionInfo.approvedMessage },
+        { secondary: canReview ? action('reopen', es.actions.reopenPlan) : undefined, tertiary },
       );
 
     default:
-      return plan({ kind: 'later_phase', title: humanize(t.state, true), message: 'This stage is handled in a later phase of the hub.' }, { tertiary });
+      return plan({ kind: 'later_phase', title: ticketStateLabels[t.state], message: es.actionInfo.laterPhaseMessage }, { tertiary });
   }
 }

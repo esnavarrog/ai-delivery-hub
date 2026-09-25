@@ -1,4 +1,4 @@
-import { AlreadyImplementedHint, TriageResult } from '@ai-delivery-hub/domain';
+import { AlreadyImplementedHint, TriageAssessment, TriageResult } from '@ai-delivery-hub/domain';
 import { z } from 'zod';
 
 /** String formats the structured-output grammar accepts; every other `format` is dropped. */
@@ -65,7 +65,9 @@ export function structuredOutputSchema(schema: z.ZodType): Record<string, unknow
 
 /**
  * Wire shape the triage model must produce: `targetRepo` is an enum of the allowed repos and
- * the optional hint becomes nullable so every property can be `required` (more reliable decoding).
+ * the optional hint and assessment become nullable so every property can be `required` (more
+ * reliable decoding). See `parseTriageCandidate` for the null -> undefined mapping back to the
+ * domain `TriageResult`.
  */
 export function triageWireSchema(repos: readonly string[]) {
   const [first, ...rest] = repos;
@@ -73,6 +75,7 @@ export function triageWireSchema(repos: readonly string[]) {
   return TriageResult.extend({
     targetRepo: z.enum([first, ...rest]),
     alreadyImplementedHint: AlreadyImplementedHint.nullable(),
+    assessment: TriageAssessment.nullable(),
   });
 }
 export type TriageWire = z.infer<ReturnType<typeof triageWireSchema>>;

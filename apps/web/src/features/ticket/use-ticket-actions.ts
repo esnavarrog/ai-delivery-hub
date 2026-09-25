@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { useTicketCommand, type TicketCommand } from '@/app/queries';
 import type { ActionId, ResolvedAction } from '@/lib/action-resolver';
 
-export type DialogId = 'approve' | 'request_changes' | 'confirm_triage' | 'reject' | 'duplicate' | 'already_implemented' | 'reopen' | 'replan' | 'stop';
+export type DialogId = 'approve' | 'request_changes' | 'confirm_triage' | 'reject' | 'duplicate' | 'already_implemented' | 'reopen' | 'replan' | 'stop' | 'answer_questions';
 
 /** Maps a resolved action to either an immediate command or a dialog; the container renders the dialog. */
 export function useTicketActions(detail: TicketDetailResponse | undefined, options: { requiresSecondApprover: boolean; onAddComment: () => void }) {
@@ -38,6 +38,7 @@ export function useTicketActions(detail: TicketDetailResponse | undefined, optio
         case 'already_implemented':
         case 'reopen':
         case 'replan':
+        case 'answer_questions':
           return setDialog(id);
       }
     },

@@ -48,6 +48,9 @@ export const TRIAGE_CONFIRMABLE_STATES: readonly TicketState[] = ['triaged', 'aw
 
 export const MAX_PLAN_VERSIONS_WITHOUT_FEEDBACK = 3;
 
+/** A ticket may go through at most this many requester clarification rounds before a human must decide. */
+export const MAX_CLARIFICATION_ROUNDS = 2;
+
 /** Roles that may sign off as the second approver on a high-risk plan. */
 export const SECOND_APPROVER_ROLES: readonly Role[] = ['dev', 'lead', 'admin'];
 
@@ -55,7 +58,12 @@ export const SECOND_APPROVER_ROLES: readonly Role[] = ['dev', 'lead', 'admin'];
 const OWNER_EQUIVALENT_ROLES: readonly Role[] = ['lead', 'admin'];
 
 /** The only events a `requester` may trigger; flag events are further restricted to `needs_info`. */
-const REQUESTER_EVENTS: readonly TicketEventType[] = ['plan_comment_added', 'flag_set', 'flag_cleared'];
+const REQUESTER_EVENTS: readonly TicketEventType[] = [
+  'plan_comment_added',
+  'flag_set',
+  'flag_cleared',
+  'requester_answers_submitted',
+];
 
 const allow: GuardResult = { allowed: true };
 const deny = (reason: string): GuardResult => ({ allowed: false, reason });
@@ -117,6 +125,35 @@ const planApprovalGuard = (ctx: TransitionContext): GuardResult => {
   return allow;
 };
 
+/**
+ * Checks `payload.round` (when the caller passes one) against `expected`. Callers that omit
+ * `payload` entirely (e.g. structural checks that only exercise state/actor rules) are left
+ * unchecked, so this stays backward compatible with every existing `canTransition` call site.
+ */
+const checkRound = (ctx: TransitionContext, expected: number): GuardResult => {
+  const round = ctx.payload?.['round'];
+  if (round === undefined) return allow;
+  return round === expected ? allow : deny(`payload.round must be ${expected} for this clarification round (got ${String(round)})`);
+};
+
+const clarificationRoundGuard = (ctx: TransitionContext): GuardResult => {
+  const currentRound = ctx.ticket.clarificationRound ?? 0;
+  if (currentRound >= MAX_CLARIFICATION_ROUNDS) {
+    return deny(`clarification rounds are capped at ${MAX_CLARIFICATION_ROUNDS}; a human must decide`);
+  }
+  return checkRound(ctx, currentRound + 1);
+};
+
+/** The ticket's own requester may answer; a lead or admin may answer any ticket; nobody else may. */
+const requesterAnswerGuard = (ctx: TransitionContext): GuardResult => {
+  if (ctx.actorRole === 'requester') {
+    if (ctx.ticket.requesterUserId !== ctx.actor.id) return deny('requester may only submit answers on their own ticket');
+  } else if (ctx.actorRole === undefined || !OWNER_EQUIVALENT_ROLES.includes(ctx.actorRole)) {
+    return deny('only the ticket requester, a lead or an admin may submit answers');
+  }
+  return checkRound(ctx, ctx.ticket.clarificationRound ?? 0);
+};
+
 const replanGuard = (ctx: TransitionContext): GuardResult => {
   const { planVersionCount, lastHumanCommentAt, lastPlanVersionAt } = ctx.ticket;
   if (planVersionCount < MAX_PLAN_VERSIONS_WITHOUT_FEEDBACK) return allow;
@@ -141,6 +178,23 @@ const phase1: Transition[] = [
   { from: 'triaging', to: 'triaged', event: 'triage_completed', allowedActors: ['ai'], phase: 1 },
   // keeps position so the scheduler can retry triage
   { from: 'triaging', to: 'received', event: 'run_failed', allowedActors: ['system'], phase: 1 },
+  {
+    from: 'triaging',
+    to: 'awaiting_requester',
+    event: 'requester_questions_asked',
+    allowedActors: ['ai'],
+    phase: 1,
+    guard: clarificationRoundGuard,
+  },
+  // requester answers re-enter triage so the AI can retriage with the answers as context
+  {
+    from: 'awaiting_requester',
+    to: 'triaging',
+    event: 'requester_answers_submitted',
+    allowedActors: ['dev'],
+    phase: 1,
+    guard: requesterAnswerGuard,
+  },
   { from: 'triaged', to: 'awaiting_owner', event: 'owner_required', allowedActors: ['system'], phase: 1 },
   { from: 'triaged', to: 'planning', event: 'planning_started', allowedActors: ['system', 'ai'], phase: 1, guard: hasOwner },
   { from: 'awaiting_owner', to: 'planning', event: 'ticket_claimed', allowedActors: ['dev'], phase: 1, guard: actorIsDev },

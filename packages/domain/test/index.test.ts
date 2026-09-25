@@ -31,6 +31,12 @@ describe('package barrel', () => {
       'WorkPackage',
       'wrapUntrusted',
       'stripControlChars',
+      'ManualIntake',
+      'Department',
+      'Frequency',
+      'riceScore',
+      'EFFORT_WEIGHTS',
+      'MAX_CLARIFICATION_ROUNDS',
     ];
     for (const name of expected) {
       expect(name in domain, `missing export ${name}`).toBe(true);

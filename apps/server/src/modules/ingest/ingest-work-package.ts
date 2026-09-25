@@ -56,9 +56,7 @@ export class IngestWorkPackage {
   private async create(wp: WorkPackage): Promise<IngestOutcome> {
     const ticketId = this.deps.ids.uuid();
     const payload: TicketReceivedPayload = {
-      opWorkPackageId: wp.id,
-      opProjectId: wp.project.id,
-      opLockVersion: wp.lockVersion,
+      source: { kind: 'openproject', workPackageId: wp.id, projectId: wp.project.id, lockVersion: wp.lockVersion },
       subject: wp.subject,
       description: wp.description.raw,
       status: wp.status,
@@ -75,7 +73,9 @@ export class IngestWorkPackage {
   private async update(ticketId: string, wp: WorkPackage): Promise<IngestOutcome> {
     const events = await this.deps.eventStore.load(ticketId);
     const { snapshot, description } = projectTicket(events);
-    if (wp.lockVersion === snapshot.opLockVersion) return { kind: 'unchanged', ticketId };
+    // Only an openproject-sourced ticket is ever found by findTicketIdByWorkPackage; guard defensively.
+    const currentLockVersion = snapshot.source.kind === 'openproject' ? snapshot.source.lockVersion : undefined;
+    if (wp.lockVersion === currentLockVersion) return { kind: 'unchanged', ticketId };
 
     const changedFields: OpChangedField[] = [];
     if (wp.subject !== snapshot.subject) changedFields.push('subject');

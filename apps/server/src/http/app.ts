@@ -2,17 +2,21 @@ import {
   AddCommentBody,
   ApproveBody,
   ConfirmTriageBody,
+  CreateTicketBody,
   DecisionBody,
   DuplicateBody,
   FlagBody,
   RequestChangesBody,
   RunsQuery,
+  SubmitAnswersBody,
   TicketListQuery,
   type CommandResponse,
   type CommentResponse,
+  type CreateTicketResponse,
   type EnqueuedResponse,
   type ErrorCode,
   type ErrorResponse,
+  type FetchResponse,
   type MeResponse,
   type PlanVersionSummary,
   type RunResponse,
@@ -21,14 +25,18 @@ import {
   type TicketListResponse,
   type TicketPlanResponse,
 } from '@ai-delivery-hub/contracts';
-import type { Role, TicketEvent, TicketSnapshot, TicketState } from '@ai-delivery-hub/domain';
+import type { ManualIntake, Role, TicketEvent, TicketSnapshot, TicketState } from '@ai-delivery-hub/domain';
 import { Hono, type Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { isWaitingOn, type HubUser, type TicketCommands } from '../modules/approval/commands.js';
-import { webhookRoutes, type WebhookDeps } from '../modules/ingest/webhook.js';
 import type { PlanCommentsRepository, PlanVersionsRepository, RunsRepository } from '../modules/shared/repositories.js';
 import { ForbiddenError, InvalidCommandError, TicketNotFoundError, TransitionDeniedError } from '../modules/shared/ticket-command.js';
+
+/** Minimal surface of `CreateManualTicket` the HTTP layer needs; avoids importing its full deps type. */
+export interface CreateTicketUseCase {
+  execute(input: { title: string; description: string; intake: ManualIntake; requesterUserId: string }): Promise<{ ticketId: string; key: string }>;
+}
 
 export interface TicketFilters {
   state?: TicketState;
@@ -53,13 +61,23 @@ export const HUB_USER_QUERY = 'hub_user';
 
 export interface AppDeps {
   queries: TicketQueries;
-  webhook: WebhookDeps;
+  ingestFetch: { execute(): Promise<FetchResponse> };
   sse?: { pollIntervalMs?: number };
   auth: { roles: Record<string, Role> };
   commands: TicketCommands;
+  /** Creates a manual (feature-request) ticket; backs `POST /api/tickets`. */
+  createTicket: CreateTicketUseCase;
   planVersions: PlanVersionsRepository;
   planComments: PlanCommentsRepository;
   runs: RunsRepository;
+}
+
+/** Roles allowed to file a feature request from the web intake route. */
+const TICKET_CREATOR_ROLES: readonly Role[] = ['requester', 'lead', 'admin'];
+
+/** A `requester` may only see their own tickets; every other role keeps today's unrestricted access. */
+function assertTicketVisible(user: HubUser, snapshot: TicketSnapshot, ticketId: string): void {
+  if (user.role === 'requester' && snapshot.requesterUserId !== user.login) throw new TicketNotFoundError(ticketId);
 }
 
 type Env = { Variables: { user: HubUser } };
@@ -132,6 +150,12 @@ export function createApp(deps: AppDeps): Hono<Env> {
     return c.json(body);
   });
 
+  /** Manual, on-demand ingest: pulls OpenProject and, when configured, imports the Obsidian inbox. */
+  app.post('/api/ingest/fetch', async (c) => {
+    const body: FetchResponse = await deps.ingestFetch.execute();
+    return c.json(body);
+  });
+
   app.get('/api/tickets', async (c) => {
     const query = parseQuery(c, TicketListQuery);
     const filters: TicketFilters = {};
@@ -139,18 +163,32 @@ export function createApp(deps: AppDeps): Hono<Env> {
     if (query.repo) filters.repo = query.repo;
     if (query.owner) filters.owner = query.owner;
     let tickets = await deps.queries.list(filters);
+    const user = c.get('user');
+    if (user.role === 'requester') tickets = tickets.filter((t) => t.requesterUserId === user.login);
     if (query.waitingOn === 'me') {
-      const user = c.get('user');
       tickets = tickets.filter((t) => isWaitingOn(t, user));
     }
     const body: TicketListResponse = { tickets };
     return c.json(body);
   });
 
+  /** Feature-request intake: a requester (or a lead/admin filing on someone's behalf) creates a manual ticket. */
+  app.post('/api/tickets', async (c) => {
+    const user = c.get('user');
+    if (!TICKET_CREATOR_ROLES.includes(user.role)) throw new ForbiddenError(`role ${user.role} may not create tickets`);
+    const body = await parseBody(c, CreateTicketBody);
+    const { ticketId } = await deps.createTicket.execute({ title: body.title, description: body.description, intake: body.intake, requesterUserId: user.login });
+    const created = await deps.queries.get(ticketId);
+    if (!created) throw new Error(`ticket ${ticketId} was not found immediately after creation`);
+    const responseBody: CreateTicketResponse = { ticket: created.snapshot };
+    return c.json(responseBody, 201);
+  });
+
   app.get('/api/tickets/:id', async (c) => {
     const id = c.req.param('id');
     const found = await deps.queries.get(id);
     if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
     const [latest, [latestRun]] = await Promise.all([deps.planVersions.latest(id), deps.runs.list({ ticketId: id, limit: 1 })]);
     const latestPlan: PlanVersionSummary | null = latest
       ? { id: latest.id, version: latest.version, goal: latest.plan.goal, baseCommitSha: latest.baseCommitSha, createdAt: latest.createdAt }
@@ -167,7 +205,9 @@ export function createApp(deps: AppDeps): Hono<Env> {
 
   app.get('/api/tickets/:id/plan', async (c) => {
     const id = c.req.param('id');
-    if (!(await deps.queries.get(id))) throw new TicketNotFoundError(id);
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
     const [versions, comments] = await Promise.all([deps.planVersions.listByTicket(id), deps.planComments.listByTicket(id)]);
     const body: TicketPlanResponse = { versions, comments };
     return c.json(body);
@@ -176,7 +216,9 @@ export function createApp(deps: AppDeps): Hono<Env> {
   /** Streams events with seq > `after` (default 0) as `ticket_event` messages; polls the store every second. */
   app.get('/api/tickets/:id/events/stream', async (c) => {
     const id = c.req.param('id');
-    if (!(await deps.queries.get(id))) throw new TicketNotFoundError(id);
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
     let after = Number(c.req.query('after') ?? c.req.header('Last-Event-ID') ?? 0) || 0;
     return streamSSE(c, async (stream) => {
       while (!stream.aborted && !stream.closed) {
@@ -219,10 +261,26 @@ export function createApp(deps: AppDeps): Hono<Env> {
 
   app.post('/api/tickets/:id/reopen', async (c) => command(c, await deps.commands.reopenPlan(c.req.param('id'), c.get('user'), await parseBody(c, DecisionBody))));
 
-  app.post('/api/tickets/:id/flags', async (c) => command(c, await deps.commands.setFlag(c.req.param('id'), c.get('user'), await parseBody(c, FlagBody))));
+  app.post('/api/tickets/:id/flags', async (c) => {
+    const id = c.req.param('id');
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
+    return command(c, await deps.commands.setFlag(id, c.get('user'), await parseBody(c, FlagBody)));
+  });
 
   app.post('/api/tickets/:id/retriage', async (c) => {
     const result = await deps.commands.retriage(c.req.param('id'), c.get('user'));
+    const body: EnqueuedResponse = { ticket: result.snapshot, enqueued: result.enqueued };
+    return c.json(body);
+  });
+
+  app.post('/api/tickets/:id/answers', async (c) => {
+    const id = c.req.param('id');
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
+    const result = await deps.commands.submitAnswers(id, c.get('user'), await parseBody(c, SubmitAnswersBody));
     const body: EnqueuedResponse = { ticket: result.snapshot, enqueued: result.enqueued };
     return c.json(body);
   });
@@ -234,18 +292,32 @@ export function createApp(deps: AppDeps): Hono<Env> {
   });
 
   app.post('/api/tickets/:id/comments', async (c) => {
-    const result = await deps.commands.addPlanComment(c.req.param('id'), c.get('user'), await parseBody(c, AddCommentBody));
+    const id = c.req.param('id');
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
+    const result = await deps.commands.addPlanComment(id, c.get('user'), await parseBody(c, AddCommentBody));
     const body: CommentResponse = { ticket: result.snapshot, comment: result.comment };
     return c.json(body, 201);
   });
 
-  app.post('/api/tickets/:id/comments/:commentId/resolve', async (c) =>
-    command(c, await deps.commands.resolvePlanComment(c.req.param('id'), c.get('user'), c.req.param('commentId'))),
-  );
+  app.post('/api/tickets/:id/comments/:commentId/resolve', async (c) => {
+    const id = c.req.param('id');
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
+    return command(c, await deps.commands.resolvePlanComment(id, c.get('user'), c.req.param('commentId')));
+  });
 
   // ---- runs ----------------------------------------------------------------
 
+  /** Requesters have no UI need for AI run costs/logs; the ticket timeline already shows what they need. */
+  const assertRunsVisible = (user: HubUser): void => {
+    if (user.role === 'requester') throw new ForbiddenError('requesters may not view runs');
+  };
+
   app.get('/api/runs', async (c) => {
+    assertRunsVisible(c.get('user'));
     const query = parseQuery(c, RunsQuery);
     const runs = await deps.runs.list(query.ticketId ? { ticketId: query.ticketId } : {});
     const body: RunsResponse = { runs };
@@ -253,13 +325,12 @@ export function createApp(deps: AppDeps): Hono<Env> {
   });
 
   app.get('/api/runs/:id', async (c) => {
+    assertRunsVisible(c.get('user'));
     const run = await deps.runs.get(c.req.param('id'));
     if (!run) throw new HttpError(404, 'not_found', `run ${c.req.param('id')} not found`);
     const body: RunResponse = { run };
     return c.json(body);
   });
-
-  app.route('/webhooks', webhookRoutes(deps.webhook));
 
   return app;
 }

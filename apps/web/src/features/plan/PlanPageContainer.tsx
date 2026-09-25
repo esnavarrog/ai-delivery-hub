@@ -4,6 +4,7 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { ArrowLeft, FileText, GitCompareArrows, LayoutList } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useCurrentLogin } from '@/app/current-user';
+import { es } from '@/i18n/es';
 import { useMe, usePlan, useTicket } from '@/app/queries';
 import { useTicketStream } from '@/app/use-ticket-stream';
 import { resolveActions } from '@/lib/action-resolver';
@@ -69,16 +70,16 @@ export function PlanPageContainer({ ticketId, versionId, onVersionChange }: { ti
   }
   if (planQuery.isError || ticketQuery.isError || !detail) {
     const err = planQuery.error ?? ticketQuery.error;
-    return <EmptyState title="Plan not available">{err instanceof Error ? err.message : 'Could not load the plan.'}</EmptyState>;
+    return <EmptyState title={es.plan.notAvailableTitle}>{err instanceof Error ? err.message : es.plan.couldNotLoad}</EmptyState>;
   }
   if (!selected) {
     return (
-      <EmptyState title="No plan yet">
-        The AI has not produced a plan for this ticket. It appears here as soon as planning finishes.
+      <EmptyState title={es.plan.noPlanYetTitle}>
+        {es.plan.noPlanYetBody}
         <div className="mt-3">
           <Button variant="outline" asChild>
             <Link to="/tickets/$id" params={{ id: ticketId }}>
-              Back to ticket
+              {es.plan.backToTicket}
             </Link>
           </Button>
         </div>
@@ -95,7 +96,7 @@ export function PlanPageContainer({ ticketId, versionId, onVersionChange }: { ti
         <div className="flex min-w-0 flex-col gap-1">
           <Link to="/tickets/$id" params={{ id: ticketId }} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="size-4" aria-hidden="true" />
-            #{detail.ticket.opWorkPackageId} {detail.ticket.subject}
+            {detail.ticket.displayKey} {detail.ticket.subject}
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">
             Plan v{selected.version} <span className="text-base font-normal text-muted-foreground">· {selected.status}</span>
@@ -103,25 +104,25 @@ export function PlanPageContainer({ ticketId, versionId, onVersionChange }: { ti
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <StateChip state={detail.ticket.state} />
             <RiskBadge tier={detail.ticket.riskTier} />
-            <RelativeTime iso={selected.createdAt} prefix="created" />
+            <RelativeTime iso={selected.createdAt} prefix="creado" />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <VersionSwitcher versions={versions} selectedId={selected.id} onSelect={onVersionChange} />
           <Button variant="outline" aria-pressed={view === 'markdown'} onClick={() => setView((v) => (v === 'markdown' ? 'structured' : 'markdown'))}>
             {view === 'markdown' ? <LayoutList className="size-4" aria-hidden="true" /> : <FileText className="size-4" aria-hidden="true" />}
-            {view === 'markdown' ? 'Structured view' : 'Markdown view'}
+            {view === 'markdown' ? es.plan.structuredView : es.plan.markdownView}
           </Button>
-          <Button variant={compare ? 'secondary' : 'outline'} disabled={!previous} aria-pressed={compare} onClick={() => setCompare((c) => !c)} title={previous ? undefined : 'No previous version to compare with'}>
+          <Button variant={compare ? 'secondary' : 'outline'} disabled={!previous} aria-pressed={compare} onClick={() => setCompare((c) => !c)} title={previous ? undefined : es.plan.noPreviousVersion}>
             <GitCompareArrows className="size-4" aria-hidden="true" />
-            {previous ? `Compare with v${previous.version}` : 'Compare'}
+            {previous ? es.plan.compareWith(previous.version) : es.plan.compare}
           </Button>
         </div>
       </div>
       <RiskBanner tier={detail.ticket.riskTier} />
       {compare && previous ? (
         <p className="text-sm text-muted-foreground" role="status">
-          {changedSections.size === 0 ? `No section differs from v${previous.version}.` : `${changedSections.size} section(s) changed since v${previous.version}, highlighted below.`}
+          {changedSections.size === 0 ? es.plan.noSectionDiffers(previous.version) : es.plan.sectionsChanged(changedSections.size, previous.version)}
         </p>
       ) : null}
       <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
@@ -142,16 +143,17 @@ export function PlanPageContainer({ ticketId, versionId, onVersionChange }: { ti
           />
           )}
         </div>
-        <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start" aria-label="Review">
+        <aside className="min-w-0 lg:sticky lg:top-20 lg:self-start" aria-label={es.plan.reviewTitle}>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Review</CardTitle>
+              <CardTitle className="text-base">{es.plan.reviewTitle}</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3 text-sm">
               <p className={cn(unresolved > 0 ? 'text-warning-foreground dark:text-warning' : 'text-muted-foreground')}>
-                <span className="text-2xl font-semibold tabular-nums">{unresolved}</span> unresolved comment{unresolved === 1 ? '' : 's'} on v{selected.version}
+                <span className="text-2xl font-semibold tabular-nums">{unresolved}</span> {es.plan.unresolvedComments(unresolved)}
+                {selected.version}
               </p>
-              {!isLatest ? <p className="text-muted-foreground">You are viewing an older version. Decisions apply to the latest plan.</p> : null}
+              {!isLatest ? <p className="text-muted-foreground">{es.plan.viewingOlderVersion}</p> : null}
               {approve || requestChanges ? (
                 <div className="flex flex-col gap-2">
                   {approve ? (
@@ -172,7 +174,7 @@ export function PlanPageContainer({ ticketId, versionId, onVersionChange }: { ti
                 <p className="text-muted-foreground">{actions?.info.message}</p>
               )}
               <Button variant="ghost" className="w-full" onClick={() => void navigate({ to: '/tickets/$id', params: { id: ticketId } })}>
-                Back to timeline
+                {es.actions.backToTimeline}
               </Button>
             </CardContent>
           </Card>

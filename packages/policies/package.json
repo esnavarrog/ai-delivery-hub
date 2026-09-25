@@ -11,7 +11,8 @@
   "files": [
     "src",
     "*.yaml",
-    "*.md"
+    "*.md",
+    "steps"
   ],
   "scripts": {
     "test": "vitest run",

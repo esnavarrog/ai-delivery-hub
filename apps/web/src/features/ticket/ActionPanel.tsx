@@ -1,7 +1,8 @@
 import type { TicketDetailResponse } from '@ai-delivery-hub/contracts';
 import type { Role } from '@ai-delivery-hub/domain';
-import { AlertTriangle, Bot, CheckCircle2, Clock, Eye, Lock } from 'lucide-react';
+import { AlertTriangle, Bot, CheckCircle2, Clock, Eye, HelpCircle, Lock } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { es } from '@/i18n/es';
 import type { ActionPlan, InfoKind, ResolvedAction } from '@/lib/action-resolver';
 import { formatTokens } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -31,6 +32,7 @@ const ICON: Record<InfoKind, typeof Bot> = {
   approved: CheckCircle2,
   closed: Lock,
   read_only: Eye,
+  needs_answer: HelpCircle,
   later_phase: Clock,
 };
 
@@ -91,7 +93,7 @@ export function ActionPanel({ detail, actions, busy, onAction }: ActionPanelProp
         <div className="text-xs text-muted-foreground">
           {run.model} · {formatTokens(used)} of {formatTokens(run.budgetTokens)} tokens ({pct}%)
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded bg-muted" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Token budget used">
+        <div className="h-1.5 w-full overflow-hidden rounded bg-muted" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={es.actionPanel.tokenBudgetAria}>
           <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
         </div>
       </div>
@@ -102,9 +104,7 @@ export function ActionPanel({ detail, actions, busy, onAction }: ActionPanelProp
     body = (
       <div className="flex flex-col gap-2 text-sm">
         <p className="text-muted-foreground">{info.message}</p>
-        <p>
-          Approved plan: <span className="font-medium">v{detail.latestPlan.version}</span> · {detail.latestPlan.goal}
-        </p>
+        <p>{es.actionPanel.approvedPlan(detail.latestPlan.version, detail.latestPlan.goal)}</p>
       </div>
     );
   }
@@ -116,11 +116,7 @@ export function ActionPanel({ detail, actions, busy, onAction }: ActionPanelProp
           <Icon className={cn('size-4', info.kind === 'failed' ? 'text-destructive' : 'text-muted-foreground')} aria-hidden="true" />
           {info.title}
         </CardTitle>
-        {info.kind === 'plan_review' && detail.latestPlan ? (
-          <CardDescription>
-            Plan v{detail.latestPlan.version} · {detail.latestPlan.goal}
-          </CardDescription>
-        ) : null}
+        {info.kind === 'plan_review' && detail.latestPlan ? <CardDescription>{es.actionPanel.planLabel(detail.latestPlan.version, detail.latestPlan.goal)}</CardDescription> : null}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {body}

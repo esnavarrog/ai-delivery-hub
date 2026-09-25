@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { formatCost, formatDuration, formatElapsed, formatTokens, humanize } from '@/lib/format';
+import { describe, expect, it, vi } from 'vitest';
+import { formatCost, formatDuration, formatElapsed, formatTokens, humanize, relativeTime } from '@/lib/format';
 
 describe('format helpers', () => {
   it('formats durations compactly', () => {
@@ -12,7 +12,7 @@ describe('format helpers', () => {
     expect(formatElapsed('2026-09-14T11:58:00.000Z', new Date('2026-09-14T12:00:00.000Z'))).toBe('2m');
   });
   it('formats cost and tokens', () => {
-    expect(formatCost(null)).toBe('n/a');
+    expect(formatCost(null)).toBe('n/d');
     expect(formatCost(0.4213)).toBe('$0.42');
     expect(formatCost(12)).toBe('$12.00');
     expect(formatTokens(950)).toBe('950');
@@ -22,5 +22,11 @@ describe('format helpers', () => {
   it('humanizes snake_case identifiers', () => {
     expect(humanize('plan_changes_requested')).toBe('plan changes requested');
     expect(humanize('budget_exhausted', true)).toBe('Budget exhausted');
+  });
+  it('formats relative time in Spanish (es-CL)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-14T12:00:00.000Z'));
+    expect(relativeTime('2026-09-14T11:58:00.000Z')).toMatch(/^hace /);
+    vi.useRealTimers();
   });
 });

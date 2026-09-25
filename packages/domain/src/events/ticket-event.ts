@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Actor } from '../ticket/actor.js';
 import { TicketFlag } from '../ticket/ticket-state.js';
-import { TriageResult } from '../triage/triage-result.js';
+import { Confidence, Effort, TriageAssessment, TriageResult } from '../triage/triage-result.js';
 
 export const TicketEventType = z.enum([
   // intake & triage
@@ -44,8 +44,12 @@ export const TicketEventType = z.enum([
   'op_sync_posted',
   /** OpenProject changed subject/description of a work package that is already a ticket. */
   'ticket_updated_from_op',
-  /** A human confirmed the AI triage, optionally overriding category, risk tier or target repo. */
+  /** A human confirmed the AI triage, optionally overriding category, risk tier, target repo or RICE scores. */
   'triage_confirmed',
+  /** AI triage asked the requester clarifying questions; moves the ticket to `awaiting_requester`. */
+  'requester_questions_asked',
+  /** The requester (or a lead/admin) answered clarifying questions; moves the ticket back to `triaging`. */
+  'requester_answers_submitted',
 ]);
 export type TicketEventType = z.infer<typeof TicketEventType>;
 
@@ -86,9 +90,46 @@ export type FlagPayload = z.infer<typeof FlagPayload>;
 
 export const TriageCompletedPayload = TriageResult;
 
+/** A human override of the AI-suggested RICE inputs; see `riceScore`. */
+export const ScoreOverride = z.object({
+  value: z.number().int().min(1).max(5),
+  reach: z.number().int().min(1).max(5),
+  confidence: Confidence,
+  effort: Effort,
+});
+export type ScoreOverride = z.infer<typeof ScoreOverride>;
+
 /** Carried by `triage_confirmed`; every field is an optional override of the AI triage. */
-export const TriageConfirmedPayload = TriageResult.pick({ category: true, riskTier: true, targetRepo: true }).partial();
+export const TriageConfirmedPayload = TriageResult.pick({ category: true, riskTier: true, targetRepo: true })
+  .partial()
+  .extend({ scores: ScoreOverride.optional() });
 export type TriageConfirmedPayload = z.infer<typeof TriageConfirmedPayload>;
+
+export const ClarificationQuestion = z.object({ id: z.string().min(1), text: z.string().min(1) });
+export type ClarificationQuestion = z.infer<typeof ClarificationQuestion>;
+
+/** Carried by `requester_questions_asked`. */
+export const RequesterQuestionsAskedPayload = z.object({
+  round: z.number().int().min(1),
+  questions: z.array(ClarificationQuestion).min(1),
+  /**
+   * The full three-lens assessment that produced these questions, so it is not lost while the
+   * ticket waits in `awaiting_requester` (only `triage_completed` otherwise carries it). Optional
+   * for backward compatibility with events written before this field existed.
+   */
+  assessment: TriageAssessment.optional(),
+});
+export type RequesterQuestionsAskedPayload = z.infer<typeof RequesterQuestionsAskedPayload>;
+
+export const ClarificationAnswer = z.object({ questionId: z.string().min(1), text: z.string().min(1) });
+export type ClarificationAnswer = z.infer<typeof ClarificationAnswer>;
+
+/** Carried by `requester_answers_submitted`. */
+export const RequesterAnswersSubmittedPayload = z.object({
+  round: z.number().int().min(1),
+  answers: z.array(ClarificationAnswer).min(1),
+});
+export type RequesterAnswersSubmittedPayload = z.infer<typeof RequesterAnswersSubmittedPayload>;
 
 export const OpChangedField = z.enum(['subject', 'description']);
 export type OpChangedField = z.infer<typeof OpChangedField>;
@@ -123,6 +164,8 @@ const typedEventTypes = [
   'ticket_claimed',
   'flag_set',
   'flag_cleared',
+  'requester_questions_asked',
+  'requester_answers_submitted',
 ] as const satisfies readonly TicketEventType[];
 type TypedEventType = (typeof typedEventTypes)[number];
 export type OpenEventType = Exclude<TicketEventType, TypedEventType>;
@@ -143,6 +186,8 @@ export const TicketEvent = z.discriminatedUnion('type', [
   eventBase.extend({ type: z.literal('ticket_claimed'), payload: TicketClaimedPayload }),
   eventBase.extend({ type: z.literal('flag_set'), payload: FlagPayload }),
   eventBase.extend({ type: z.literal('flag_cleared'), payload: FlagPayload }),
+  eventBase.extend({ type: z.literal('requester_questions_asked'), payload: RequesterQuestionsAskedPayload }),
+  eventBase.extend({ type: z.literal('requester_answers_submitted'), payload: RequesterAnswersSubmittedPayload }),
   eventBase.extend({ type: z.enum(openEventTypes), payload: OpenPayload }),
 ]);
 export type TicketEvent = z.infer<typeof TicketEvent>;

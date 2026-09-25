@@ -2,7 +2,10 @@ import type { RunDto } from '@ai-delivery-hub/contracts';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 import { useRuns } from '@/app/queries';
-import { formatCost, formatDuration, formatTokens, humanize } from '@/lib/format';
+import { es } from '@/i18n/es';
+import { runFailureReasonLabels, runKindLabels, runStatusLabels } from '@/i18n/labels';
+import { formatAbsolute, formatCost, formatDuration, formatTokens } from '@/lib/format';
+import { useRedirectRequesterAway } from '@/lib/route-guards';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 import { Button } from '@/ui/button';
@@ -25,39 +28,42 @@ export function runDuration(run: RunDto, now = new Date()): string {
 }
 
 export function RunsContainer() {
+  const hideForRequester = useRedirectRequesterAway('/solicitudes');
   const runs = useRuns();
   const [selected, setSelected] = useState<RunDto | null>(null);
 
+  if (hideForRequester) return null;
+
   return (
     <div>
-      <PageHeader title="Runs" description="Every AI run with its budget, cost and outcome. Select a row for details." />
+      <PageHeader title={es.runs.title} description={es.runs.description} />
       {runs.isPending ? (
         <Skeleton className="h-64" />
       ) : runs.isError ? (
-        <EmptyState title="Runs not available">
-          {runs.error instanceof Error ? runs.error.message : 'Could not load runs.'}
+        <EmptyState title={es.runs.notAvailableTitle}>
+          {runs.error instanceof Error ? runs.error.message : es.runs.couldNotLoad}
           <div className="mt-3">
             <Button variant="outline" onClick={() => void runs.refetch()}>
-              Retry
+              {es.runs.retry}
             </Button>
           </div>
         </EmptyState>
       ) : runs.data.runs.length === 0 ? (
-        <EmptyState title="No runs yet">Runs appear as soon as the AI triages or plans a ticket.</EmptyState>
+        <EmptyState title={es.runs.noneYetTitle}>{es.runs.noneYetBody}</EmptyState>
       ) : (
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full min-w-[56rem] text-sm">
             <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 font-medium">Ticket</th>
-                <th className="px-3 py-2 font-medium">Kind</th>
-                <th className="px-3 py-2 font-medium">Status</th>
-                <th className="px-3 py-2 font-medium">Model</th>
-                <th className="px-3 py-2 text-right font-medium">Tokens in</th>
-                <th className="px-3 py-2 text-right font-medium">Tokens out</th>
-                <th className="px-3 py-2 text-right font-medium">Cost</th>
-                <th className="px-3 py-2 text-right font-medium">Duration</th>
-                <th className="px-3 py-2 font-medium">Started</th>
+                <th className="px-3 py-2 font-medium">{es.runs.table.ticket}</th>
+                <th className="px-3 py-2 font-medium">{es.runs.table.kind}</th>
+                <th className="px-3 py-2 font-medium">{es.runs.table.status}</th>
+                <th className="px-3 py-2 font-medium">{es.runs.table.model}</th>
+                <th className="px-3 py-2 text-right font-medium">{es.runs.table.tokensIn}</th>
+                <th className="px-3 py-2 text-right font-medium">{es.runs.table.tokensOut}</th>
+                <th className="px-3 py-2 text-right font-medium">{es.runs.table.cost}</th>
+                <th className="px-3 py-2 text-right font-medium">{es.runs.table.duration}</th>
+                <th className="px-3 py-2 font-medium">{es.runs.table.started}</th>
               </tr>
             </thead>
             <tbody>
@@ -73,17 +79,17 @@ export function RunsContainer() {
                     }
                   }}
                   tabIndex={0}
-                  aria-label={`Run ${run.id}, ${run.kind}, ${humanize(run.status)}`}
+                  aria-label={es.runs.rowAria(run.id, runKindLabels[run.kind], runStatusLabels[run.status])}
                 >
                   <td className="px-3 py-2">
                     <Link to="/tickets/$id" params={{ id: run.ticketId }} className="font-mono text-xs text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
                       {run.ticketId}
                     </Link>
                   </td>
-                  <td className="px-3 py-2 capitalize">{run.kind}</td>
+                  <td className="px-3 py-2">{runKindLabels[run.kind]}</td>
                   <td className="px-3 py-2">
                     <Badge variant="outline" className={cn('border-transparent', STATUS_TONE[run.status])}>
-                      {humanize(run.status)}
+                      {runStatusLabels[run.status]}
                     </Badge>
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{run.model}</td>
@@ -105,39 +111,35 @@ export function RunsContainer() {
           {selected ? (
             <>
               <DialogHeader>
-                <DialogTitle className="capitalize">
-                  {selected.kind} run · {humanize(selected.status)}
-                </DialogTitle>
+                <DialogTitle>{es.runs.dialog.run(runKindLabels[selected.kind], runStatusLabels[selected.status])}</DialogTitle>
                 <DialogDescription>
-                  Run <span className="font-mono">{selected.id}</span> on ticket{' '}
+                  {es.runs.dialog.runOn} <span className="font-mono">{selected.id}</span> {es.runs.dialog.onTicket}{' '}
                   <Link to="/tickets/$id" params={{ id: selected.ticketId }} className="font-mono text-primary hover:underline">
                     {selected.ticketId}
                   </Link>
                 </DialogDescription>
               </DialogHeader>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                <dt className="text-muted-foreground">Model</dt>
+                <dt className="text-muted-foreground">{es.runs.dialog.model}</dt>
                 <dd className="font-mono text-xs">{selected.model}</dd>
-                <dt className="text-muted-foreground">Tokens</dt>
-                <dd>
-                  {formatTokens(selected.inputTokens)} in · {formatTokens(selected.outputTokens)} out · budget {formatTokens(selected.budgetTokens)}
-                </dd>
-                <dt className="text-muted-foreground">Cost</dt>
+                <dt className="text-muted-foreground">{es.runs.dialog.tokens}</dt>
+                <dd>{es.runs.dialog.tokensDetail(formatTokens(selected.inputTokens), formatTokens(selected.outputTokens), formatTokens(selected.budgetTokens))}</dd>
+                <dt className="text-muted-foreground">{es.runs.dialog.cost}</dt>
                 <dd>{formatCost(selected.costUsd)}</dd>
-                <dt className="text-muted-foreground">Duration</dt>
+                <dt className="text-muted-foreground">{es.runs.dialog.duration}</dt>
                 <dd>{runDuration(selected)}</dd>
-                <dt className="text-muted-foreground">Started</dt>
-                <dd>{new Date(selected.startedAt).toLocaleString()}</dd>
+                <dt className="text-muted-foreground">{es.runs.dialog.started}</dt>
+                <dd>{formatAbsolute(selected.startedAt)}</dd>
                 {selected.endedAt ? (
                   <>
-                    <dt className="text-muted-foreground">Ended</dt>
-                    <dd>{new Date(selected.endedAt).toLocaleString()}</dd>
+                    <dt className="text-muted-foreground">{es.runs.dialog.ended}</dt>
+                    <dd>{formatAbsolute(selected.endedAt)}</dd>
                   </>
                 ) : null}
                 {selected.failureReason ? (
                   <>
-                    <dt className="text-muted-foreground">Failure</dt>
-                    <dd className="text-destructive">{humanize(selected.failureReason, true)}</dd>
+                    <dt className="text-muted-foreground">{es.runs.dialog.failure}</dt>
+                    <dd className="text-destructive">{runFailureReasonLabels[selected.failureReason]}</dd>
                   </>
                 ) : null}
               </dl>

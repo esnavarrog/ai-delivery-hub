@@ -4,7 +4,7 @@ import {
   OpenProjectConflictError,
   OpenProjectHttpError,
 } from '../../src/adapters/openproject/client.js';
-import { fakeFetch, rawCollection, rawStatuses, rawWorkPackage } from '../helpers/op-fixtures.js';
+import { fakeFetch, rawCollection, rawWorkPackage } from '../helpers/op-fixtures.js';
 
 const fixedClock = { now: () => new Date('2026-09-14T12:00:00.000Z'), nowIso: () => '2026-09-14T12:00:00.000Z' };
 
@@ -51,43 +51,35 @@ describe('OpenProjectClient', () => {
     expect(calls).toHaveLength(1);
   });
 
-  it('posts a comment as {comment:{raw}} and returns the activity id', async () => {
-    const { op, calls } = client([{ status: 201, json: { _type: 'Activity::Comment', id: 999, comment: { raw: 'hi' } } }]);
-    const res = await op.addComment(4711, 'hi');
-    expect(res).toEqual({ commentId: '999' });
-    expect(calls[0]?.method).toBe('POST');
-    expect(calls[0]?.url.pathname).toBe('/api/v3/work_packages/4711/activities');
-    expect(calls[0]?.body).toEqual({ comment: { raw: 'hi' } });
-    expect(calls[0]?.headers.get('content-type')).toBe('application/json');
-  });
-
-  it('patches the status with lockVersion and the status href', async () => {
-    const { op, calls } = client([{ json: rawWorkPackage({ lockVersion: 4 }, { status: { href: '/api/v3/statuses/7', title: 'In specification' } }) }]);
-    const wp = await op.setStatus(4711, 7, 3);
-    expect(wp.status).toBe('In specification');
-    expect(calls[0]?.method).toBe('PATCH');
-    expect(calls[0]?.url.pathname).toBe('/api/v3/work_packages/4711');
-    expect(calls[0]?.body).toEqual({ lockVersion: 3, _links: { status: { href: '/api/v3/statuses/7' } } });
-  });
-
   it('maps a 409 to OpenProjectConflictError and other errors to OpenProjectHttpError', async () => {
     const { op } = client([
       { status: 409, json: { _type: 'Error', errorIdentifier: 'urn:openproject-org:api:v3:errors:UpdateConflict', message: 'stale' } },
       { status: 500, json: { message: 'boom' } },
     ]);
-    await expect(op.setStatus(4711, 7, 1)).rejects.toBeInstanceOf(OpenProjectConflictError);
+    await expect(op.getWorkPackage(1)).rejects.toBeInstanceOf(OpenProjectConflictError);
     const err = await op.getWorkPackage(1).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(OpenProjectHttpError);
     expect((err as OpenProjectHttpError).status).toBe(500);
   });
 
-  it('resolves status ids by name once and caches them', async () => {
-    const { op, calls } = client([{ json: rawStatuses }]);
-    expect(await op.statusIdByName('In specification')).toBe(7);
-    expect(await op.statusIdByName('Ready for AI')).toBe(12);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.url.pathname).toBe('/api/v3/statuses');
-    await expect(op.statusIdByName('Nope')).rejects.toThrow(/Nope/);
+  it('never issues a non-GET request from any public method', async () => {
+    const guardedFetch: typeof fetch = async (input, init) => {
+      const method = init?.method ?? 'GET';
+      if (method !== 'GET') throw new Error(`unexpected ${method} request to ${String(input)}`);
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/activities')) {
+        return new Response(JSON.stringify(rawCollection([], { total: 0 })), { status: 200, headers: { 'content-type': 'application/hal+json' } });
+      }
+      if (url.includes('/work_packages/') && !url.includes('/projects/')) {
+        return new Response(JSON.stringify(rawWorkPackage()), { status: 200, headers: { 'content-type': 'application/hal+json' } });
+      }
+      return new Response(JSON.stringify(rawCollection([rawWorkPackage()], { total: 1 })), { status: 200, headers: { 'content-type': 'application/hal+json' } });
+    };
+    const op = new OpenProjectClient({ baseUrl: 'https://op.example.com', apiKey: 'secret-key', fetch: guardedFetch, clock: fixedClock });
+
+    await expect(op.getWorkPackage(4711)).resolves.toMatchObject({ id: 4711 });
+    await expect(op.listUpdatedSince(15, '2026-09-13T00:00:00.000Z')).resolves.toHaveLength(1);
+    await expect(op.getActivities(4711)).resolves.toEqual([]);
   });
 
   it('reads activities, separating comments from journal changes', async () => {

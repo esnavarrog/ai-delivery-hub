@@ -1,6 +1,7 @@
 import type { PlanCommentDto, PlanVersionDto } from '@ai-delivery-hub/contracts';
 import { PLAN_SECTION_KEYS, type Plan, type PlanSectionKey, type SectionPath } from '@ai-delivery-hub/domain';
 import type { ReactNode } from 'react';
+import { es } from '@/i18n/es';
 import { cn } from '@/lib/utils';
 import { RiskBadge } from '@/ui/risk-badge';
 import { SectionComments } from './SectionComments';
@@ -24,7 +25,7 @@ export interface PlanViewProps {
 const sectionOf = (path: string): string => path.replace(/\[\d+\]$/, '');
 
 function List({ items, mono = false }: { items: readonly string[]; mono?: boolean }) {
-  if (items.length === 0) return <p className="text-sm text-muted-foreground">None</p>;
+  if (items.length === 0) return <p className="text-sm text-muted-foreground">{es.plan.none}</p>;
   return (
     <ul className={cn('list-disc space-y-1 pl-5 text-sm', mono && 'font-mono text-xs')}>
       {items.map((item, i) => (
@@ -56,9 +57,7 @@ function renderSection(key: PlanSectionKey, plan: Plan, draftHtml: PlanViewProps
                 {html !== undefined ? (
                   <iframe title={draft.title} sandbox="" srcDoc={html} className="h-72 w-full rounded border bg-white" />
                 ) : (
-                  <p className="rounded border border-dashed p-3 text-xs text-muted-foreground">
-                    Draft artifact <span className="font-mono">{draft.artifactRef}</span> is not downloadable yet. The server exposes design drafts in Phase 1b.
-                  </p>
+                  <p className="rounded border border-dashed p-3 text-xs text-muted-foreground">{es.plan.draftNotDownloadable(draft.artifactRef)}</p>
                 )}
               </figure>
             );
@@ -67,7 +66,7 @@ function renderSection(key: PlanSectionKey, plan: Plan, draftHtml: PlanViewProps
       );
     case 'filesTouched':
       return plan.filesTouched.length === 0 ? (
-        <p className="text-sm text-muted-foreground">None</p>
+        <p className="text-sm text-muted-foreground">{es.plan.none}</p>
       ) : (
         <ul className="space-y-1 text-sm">
           {plan.filesTouched.map((f) => (
@@ -92,7 +91,7 @@ function renderSection(key: PlanSectionKey, plan: Plan, draftHtml: PlanViewProps
                   <p className="text-muted-foreground">{step.detail}</p>
                   {step.tests.length > 0 ? (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Tests: <span className="font-mono">{step.tests.join(', ')}</span>
+                      {es.plan.tests} <span className="font-mono">{step.tests.join(', ')}</span>
                     </p>
                   ) : null}
                 </div>
@@ -104,7 +103,7 @@ function renderSection(key: PlanSectionKey, plan: Plan, draftHtml: PlanViewProps
       return <List items={plan.tests} mono />;
     case 'risks':
       return plan.risks.length === 0 ? (
-        <p className="text-sm text-muted-foreground">None identified</p>
+        <p className="text-sm text-muted-foreground">{es.plan.noneIdentified}</p>
       ) : (
         <ul className="space-y-2 text-sm">
           {plan.risks.map((r, i) => (
@@ -113,7 +112,9 @@ function renderSection(key: PlanSectionKey, plan: Plan, draftHtml: PlanViewProps
                 <RiskBadge tier={r.tier} />
                 <span className="font-medium">{r.description}</span>
               </div>
-              <p className="text-muted-foreground">Mitigation: {r.mitigation}</p>
+              <p className="text-muted-foreground">
+                {es.plan.mitigation} {r.mitigation}
+              </p>
             </li>
           ))}
         </ul>
@@ -127,7 +128,7 @@ function renderSection(key: PlanSectionKey, plan: Plan, draftHtml: PlanViewProps
             <li key={ac.id} className="rounded-md border p-3">
               <p className="font-mono text-xs text-muted-foreground">{ac.id}</p>
               <p>
-                <span className="font-medium">Given</span> {ac.given}, <span className="font-medium">when</span> {ac.when}, <span className="font-medium">then</span> {ac.then}
+                <span className="font-medium">{es.plan.given}</span> {ac.given}, <span className="font-medium">{es.plan.when}</span> {ac.when}, <span className="font-medium">{es.plan.then}</span> {ac.then}
               </p>
             </li>
           ))}
@@ -163,8 +164,8 @@ export function PlanView({ version, comments, changedSections, canComment, canRe
                 {SECTION_LABELS[key]}
               </h2>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {changed ? <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary">changed</span> : null}
-                {sectionComments.length > 0 ? <span>{sectionComments.length} comment(s)</span> : null}
+                {changed ? <span className="rounded bg-primary/10 px-1.5 py-0.5 font-medium text-primary">{es.plan.changed}</span> : null}
+                {sectionComments.length > 0 ? <span>{es.plan.comments(sectionComments.length)}</span> : null}
               </div>
             </div>
             {renderSection(key, plan, draftHtml)}

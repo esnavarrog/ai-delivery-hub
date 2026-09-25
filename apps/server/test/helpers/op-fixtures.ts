@@ -35,18 +35,6 @@ export function rawCollection(
   };
 }
 
-export const rawStatuses = {
-  _type: 'Collection',
-  count: 3,
-  _embedded: {
-    elements: [
-      { _type: 'Status', id: 1, name: 'New' },
-      { _type: 'Status', id: 7, name: 'In specification' },
-      { _type: 'Status', id: 12, name: 'Ready for AI' },
-    ],
-  },
-};
-
 export interface RecordedCall {
   url: URL;
   method: string;

@@ -11,12 +11,22 @@ type TicketRow = typeof tickets.$inferSelect;
 
 const iso = (d: Date | null): string | undefined => d?.toISOString();
 
+function rowToSource(row: TicketRow): TicketSnapshot['source'] {
+  if (row.sourceKind === 'manual') {
+    if (row.manualKey === null) throw new Error(`ticket ${row.id}: sourceKind is manual but manual_key is null`);
+    return { kind: 'manual', key: row.manualKey };
+  }
+  if (row.opWorkPackageId === null || row.opProjectId === null || row.opLockVersion === null) {
+    throw new Error(`ticket ${row.id}: sourceKind is openproject but an OP column is null`);
+  }
+  return { kind: 'openproject', workPackageId: row.opWorkPackageId, projectId: row.opProjectId, lockVersion: row.opLockVersion };
+}
+
 export function rowToSnapshot(row: TicketRow): TicketSnapshot {
   const snapshot: Record<string, unknown> = {
     id: row.id,
-    opWorkPackageId: row.opWorkPackageId,
-    opProjectId: row.opProjectId,
-    opLockVersion: row.opLockVersion,
+    source: rowToSource(row),
+    displayKey: row.displayKey,
     subject: row.subject,
     state: row.state,
     flags: row.flags,
@@ -31,6 +41,15 @@ export function rowToSnapshot(row: TicketRow): TicketSnapshot {
     ['riskTier', row.riskTier ?? undefined],
     ['targetRepo', row.targetRepo ?? undefined],
     ['ownerUserId', row.ownerUserId ?? undefined],
+    ['department', row.department ?? undefined],
+    ['requesterUserId', row.requesterUserId ?? undefined],
+    ['clarificationRound', row.clarificationRound ?? undefined],
+    ['pendingQuestionCount', row.pendingQuestionCount ?? undefined],
+    ['value', row.scoreValue ?? undefined],
+    ['reach', row.scoreReach ?? undefined],
+    ['confidence', row.scoreConfidence ?? undefined],
+    ['effort', row.scoreEffort ?? undefined],
+    ['riceScore', row.riceScore ?? undefined],
     ['lastPlanVersionAt', iso(row.lastPlanVersionAt)],
     ['lastHumanCommentAt', iso(row.lastHumanCommentAt)],
   ];
@@ -47,9 +66,12 @@ export class PgTicketProjection implements TicketIndex, TicketQueries {
     const { snapshot, description } = projectTicket(events);
     const row: typeof tickets.$inferInsert = {
       id: snapshot.id,
-      opWorkPackageId: snapshot.opWorkPackageId,
-      opProjectId: snapshot.opProjectId,
-      opLockVersion: snapshot.opLockVersion,
+      sourceKind: snapshot.source.kind,
+      opWorkPackageId: snapshot.source.kind === 'openproject' ? snapshot.source.workPackageId : null,
+      opProjectId: snapshot.source.kind === 'openproject' ? snapshot.source.projectId : null,
+      opLockVersion: snapshot.source.kind === 'openproject' ? snapshot.source.lockVersion : null,
+      manualKey: snapshot.source.kind === 'manual' ? snapshot.source.key : null,
+      displayKey: snapshot.displayKey,
       subject: snapshot.subject,
       description,
       state: snapshot.state,
@@ -58,6 +80,15 @@ export class PgTicketProjection implements TicketIndex, TicketQueries {
       riskTier: snapshot.riskTier ?? null,
       targetRepo: snapshot.targetRepo ?? null,
       ownerUserId: snapshot.ownerUserId ?? null,
+      department: snapshot.department ?? null,
+      requesterUserId: snapshot.requesterUserId ?? null,
+      clarificationRound: snapshot.clarificationRound ?? null,
+      pendingQuestionCount: snapshot.pendingQuestionCount ?? null,
+      scoreValue: snapshot.value ?? null,
+      scoreReach: snapshot.reach ?? null,
+      scoreConfidence: snapshot.confidence ?? null,
+      scoreEffort: snapshot.effort ?? null,
+      riceScore: snapshot.riceScore ?? null,
       priority: snapshot.priority,
       planVersionCount: snapshot.planVersionCount,
       unresolvedCommentCount: snapshot.unresolvedCommentCount,

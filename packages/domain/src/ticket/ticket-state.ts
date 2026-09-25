@@ -4,6 +4,8 @@ import { z } from 'zod';
 export const TicketState = z.enum([
   'received',
   'triaging',
+  /** AI triage asked the requester clarifying questions; see `MAX_CLARIFICATION_ROUNDS`. */
+  'awaiting_requester',
   'triaged',
   'awaiting_owner',
   'planning',

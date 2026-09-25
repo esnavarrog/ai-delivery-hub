@@ -1,5 +1,7 @@
 import type { RiskTier } from '@ai-delivery-hub/domain';
 import { ShieldAlert, ShieldCheck, ShieldQuestion } from 'lucide-react';
+import { es } from '@/i18n/es';
+import { riskTierLabels } from '@/i18n/labels';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 
@@ -15,16 +17,17 @@ const ICON: Record<RiskTier, typeof ShieldAlert> = { low: ShieldCheck, medium: S
 export function RiskBadge({ tier, className }: { tier: RiskTier | undefined; className?: string }) {
   if (!tier) {
     return (
-      <Badge variant="outline" className={cn('text-muted-foreground', className)} aria-label="Risk not assessed yet">
-        risk pending
+      <Badge variant="outline" className={cn('text-muted-foreground', className)} aria-label={es.risk.pendingAria}>
+        {es.risk.pending}
       </Badge>
     );
   }
   const Icon = ICON[tier];
+  const label = riskTierLabels[tier];
   return (
-    <Badge variant="outline" className={cn('gap-1 font-medium', STYLE[tier], className)} aria-label={`${tier} risk`} data-risk={tier}>
+    <Badge variant="outline" className={cn('gap-1 font-medium', STYLE[tier], className)} aria-label={es.risk.riskSuffix(label)} data-risk={tier}>
       <Icon className="size-3" aria-hidden="true" />
-      {tier} risk
+      {es.risk.riskSuffix(label)}
     </Badge>
   );
 }

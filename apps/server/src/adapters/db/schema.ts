@@ -1,15 +1,25 @@
-import { index, integer, jsonb, numeric, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, numeric, pgTable, real, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
-/** Read model of a ticket (see domain `TicketSnapshot`) plus `description` and the projected head seq. */
+/**
+ * Read model of a ticket (see domain `TicketSnapshot`) plus `description` and the projected head seq.
+ * `sourceKind` discriminates an OpenProject work package (`opWorkPackageId`/`opProjectId`/
+ * `opLockVersion` set, `manualKey` null) from a manual ticket (`manualKey` set, OP columns null).
+ * Both id columns are individually `unique()`; Postgres treats NULLs as distinct for uniqueness, so
+ * any number of manual rows (all-null OP columns) and OP rows (all-null `manualKey`) coexist.
+ * `displayKey` is denormalized (`OP-<id>` or the manual key) so list/detail reads never recompute it.
+ */
 export const tickets = pgTable(
   'tickets',
   {
     id: text('id').primaryKey(),
-    opWorkPackageId: integer('op_work_package_id').notNull().unique(),
-    opProjectId: integer('op_project_id').notNull(),
-    opLockVersion: integer('op_lock_version').notNull(),
+    sourceKind: text('source_kind').notNull(),
+    opWorkPackageId: integer('op_work_package_id').unique(),
+    opProjectId: integer('op_project_id'),
+    opLockVersion: integer('op_lock_version'),
+    manualKey: text('manual_key').unique(),
+    displayKey: text('display_key').notNull(),
     subject: text('subject').notNull(),
     description: text('description').notNull().default(''),
     state: text('state').notNull(),
@@ -18,6 +28,20 @@ export const tickets = pgTable(
     riskTier: text('risk_tier'),
     targetRepo: text('target_repo'),
     ownerUserId: text('owner_user_id'),
+    /** Manual (feature request) tickets only; null on OpenProject-sourced tickets. */
+    department: text('department'),
+    /** The ticket's creator/requester login; drives requester-scoped reads and the answer guard. */
+    requesterUserId: text('requester_user_id'),
+    /** How many clarification rounds have been asked so far; set by `requester_questions_asked`. */
+    clarificationRound: integer('clarification_round'),
+    /** Outstanding clarification questions; reset to 0 by `requester_answers_submitted`. */
+    pendingQuestionCount: integer('pending_question_count'),
+    /** Effective RICE inputs, set by `triage_completed`'s assessment and overridable by `triage_confirmed`. */
+    scoreValue: integer('score_value'),
+    scoreReach: integer('score_reach'),
+    scoreConfidence: real('score_confidence'),
+    scoreEffort: text('score_effort'),
+    riceScore: real('rice_score'),
     priority: text('priority').notNull(),
     planVersionCount: integer('plan_version_count').notNull().default(0),
     unresolvedCommentCount: integer('unresolved_comment_count').notNull().default(0),
@@ -27,7 +51,12 @@ export const tickets = pgTable(
     createdAt: ts('created_at').notNull(),
     updatedAt: ts('updated_at').notNull(),
   },
-  (t) => [index('tickets_state_idx').on(t.state), index('tickets_owner_idx').on(t.ownerUserId), index('tickets_repo_idx').on(t.targetRepo)],
+  (t) => [
+    index('tickets_state_idx').on(t.state),
+    index('tickets_owner_idx').on(t.ownerUserId),
+    index('tickets_repo_idx').on(t.targetRepo),
+    index('tickets_requester_idx').on(t.requesterUserId),
+  ],
 );
 
 /** Append-only event stream; `(ticket_id, seq)` uniqueness is what enforces optimistic concurrency. */
@@ -117,26 +146,6 @@ export const repos = pgTable('repos', {
   updatedAt: ts('updated_at').notNull(),
 });
 
-/** Idempotent writes towards OpenProject; `key` is `${ticketId}:${eventSeq}:${kind}`. */
-export const opSyncOutbox = pgTable(
-  'op_sync_outbox',
-  {
-    key: text('key').primaryKey(),
-    ticketId: text('ticket_id').notNull(),
-    eventSeq: integer('event_seq').notNull(),
-    kind: text('kind').notNull(),
-    opWorkPackageId: integer('op_work_package_id').notNull(),
-    payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
-    status: text('status').notNull().default('pending'),
-    attempts: integer('attempts').notNull().default(0),
-    lastError: text('last_error'),
-    externalRef: text('external_ref'),
-    createdAt: ts('created_at').notNull().defaultNow(),
-    postedAt: ts('posted_at'),
-  },
-  (t) => [index('op_sync_outbox_status_idx').on(t.status)],
-);
-
 export const approvals = pgTable(
   'approvals',
   {
@@ -156,4 +165,10 @@ export const ingestWatermarks = pgTable('ingest_watermarks', {
   projectId: integer('project_id').primaryKey(),
   since: ts('since').notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Single-row atomic counter backing manual ticket keys (`M-0001`, `M-0002`, ...); the row is created on first use. */
+export const manualTicketCounter = pgTable('manual_ticket_counter', {
+  id: text('id').primaryKey(),
+  nextValue: integer('next_value').notNull().default(1),
 });

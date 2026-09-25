@@ -1,4 +1,5 @@
 import type { TicketEvent } from '../events/ticket-event.js';
+import { riceScore } from '../triage/rice-score.js';
 import type { TicketSnapshot } from './ticket.js';
 import { isFlagEvent, nextState, TRANSITION_EVENTS } from './transitions.js';
 
@@ -40,21 +41,48 @@ export function reduceTicket(snapshot: TicketSnapshot, event: TicketEvent): Tick
   }
 
   switch (event.type) {
-    case 'triage_completed':
+    case 'triage_completed': {
       next.category = event.payload.category;
       next.riskTier = event.payload.riskTier;
       next.targetRepo = event.payload.targetRepo;
+      const management = event.payload.assessment?.management;
+      if (management !== undefined) {
+        next.value = management.value;
+        next.reach = management.reach;
+        next.confidence = management.confidence;
+        next.effort = management.effort;
+        next.riceScore = riceScore(management);
+      }
       break;
+    }
     case 'triage_confirmed':
       if (event.payload.category !== undefined) next.category = event.payload.category;
       if (event.payload.riskTier !== undefined) next.riskTier = event.payload.riskTier;
       if (event.payload.targetRepo !== undefined) next.targetRepo = event.payload.targetRepo;
+      if (event.payload.scores !== undefined) {
+        next.value = event.payload.scores.value;
+        next.reach = event.payload.scores.reach;
+        next.confidence = event.payload.scores.confidence;
+        next.effort = event.payload.scores.effort;
+        next.riceScore = riceScore(event.payload.scores);
+      }
+      break;
+    case 'requester_questions_asked':
+      next.clarificationRound = event.payload.round;
+      next.pendingQuestionCount = event.payload.questions.length;
+      break;
+    case 'requester_answers_submitted':
+      next.pendingQuestionCount = 0;
       break;
     case 'ticket_claimed':
       next.ownerUserId = event.payload.ownerUserId;
       break;
     case 'ticket_updated_from_op':
-      next.opLockVersion = event.payload.opLockVersion;
+      // Only an openproject-sourced ticket can receive this event (the ingest index only finds
+      // OP tickets by work package id); guard defensively rather than assume.
+      if (snapshot.source.kind === 'openproject') {
+        next.source = { ...snapshot.source, lockVersion: event.payload.opLockVersion };
+      }
       if (event.payload.subject !== undefined) next.subject = event.payload.subject;
       break;
     case 'plan_version_created':

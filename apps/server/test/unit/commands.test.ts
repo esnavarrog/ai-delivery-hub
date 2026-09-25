@@ -145,6 +145,15 @@ describe('TicketCommands', () => {
       await expect(ownedCommands.confirmTriage('t-2', bob, { riskTier: 'low' })).rejects.toBeInstanceOf(TransitionDeniedError);
       expect((await ownedCommands.confirmTriage('t-2', ana, { riskTier: 'low' })).snapshot.riskTier).toBe('low');
     });
+    it('passes a score override through to the triage_confirmed payload and recomputes RICE on the snapshot', async () => {
+      await store.append('t-1', 0, awaitingOwnerStream('t-1'));
+      const scores = { value: 5, reach: 4, confidence: 1 as const, effort: 'S' as const };
+      const result = await commands.confirmTriage('t-1', ana, { scores });
+      expect(result.snapshot).toMatchObject({ value: 5, reach: 4, confidence: 1, effort: 'S', riceScore: 20 });
+      const last = (await store.load('t-1')).at(-1)!;
+      expect(last.type).toBe('triage_confirmed');
+      expect(last.payload).toEqual({ scores });
+    });
   });
 
   describe('plan comments', () => {
@@ -294,5 +303,47 @@ describe('TicketCommands', () => {
   it('qa users cannot drive phase-1 review transitions', async () => {
     await seedReview();
     await expect(commands.approvePlan('t-1', qa, {})).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  describe('submitAnswers', () => {
+    const awaitingRequesterStream = (ticketId: string, requesterUserId = 'req'): TicketEvent[] => {
+      seq = 1;
+      return [
+        receivedEvent(ticketId, { requesterUserId }),
+        ev(ticketId, 'triage_started', sys),
+        ev(ticketId, 'requester_questions_asked', ai, { round: 1, questions: [{ id: 'q1', text: 'Which team?' }] }),
+      ];
+    };
+
+    it("lets the ticket's own requester answer, re-triages and re-enters triaging", async () => {
+      await store.append('t-1', 0, awaitingRequesterStream('t-1', 'req'));
+      const result = await commands.submitAnswers('t-1', requester, { round: 1, answers: [{ questionId: 'q1', text: 'Finance' }] });
+      expect(result.snapshot.state).toBe('triaging');
+      expect(result.enqueued).toBe('triage');
+      expect(triageQueue).toEqual(['t-1']);
+      expect((await store.load('t-1')).at(-1)).toMatchObject({ type: 'requester_answers_submitted', payload: { round: 1, answers: [{ questionId: 'q1', text: 'Finance' }] } });
+    });
+
+    it('lets a lead/admin answer on behalf of the requester', async () => {
+      await store.append('t-1', 0, awaitingRequesterStream('t-1', 'req'));
+      const result = await commands.submitAnswers('t-1', lead, { round: 1, answers: [{ questionId: 'q1', text: 'Finance' }] });
+      expect(result.snapshot.state).toBe('triaging');
+    });
+
+    it("denies a different requester answering someone else's ticket (409)", async () => {
+      await store.append('t-1', 0, awaitingRequesterStream('t-1', 'req'));
+      const other: HubUser = { login: 'other-req', role: 'requester' };
+      await expect(commands.submitAnswers('t-1', other, { round: 1, answers: [{ questionId: 'q1', text: 'x' }] })).rejects.toBeInstanceOf(TransitionDeniedError);
+    });
+
+    it('denies answering a stale round (409)', async () => {
+      await store.append('t-1', 0, awaitingRequesterStream('t-1', 'req'));
+      await expect(commands.submitAnswers('t-1', requester, { round: 2, answers: [{ questionId: 'q1', text: 'x' }] })).rejects.toBeInstanceOf(TransitionDeniedError);
+    });
+
+    it('denies a plain dev who is neither the requester nor lead/admin (409)', async () => {
+      await store.append('t-1', 0, awaitingRequesterStream('t-1', 'req'));
+      await expect(commands.submitAnswers('t-1', bob, { round: 1, answers: [{ questionId: 'q1', text: 'x' }] })).rejects.toBeInstanceOf(TransitionDeniedError);
+    });
   });
 });

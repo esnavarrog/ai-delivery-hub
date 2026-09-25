@@ -10,8 +10,9 @@ import {
   type RunUsage,
   type TriageResult,
 } from '@ai-delivery-hub/domain';
-import type { EffortLevel } from '@ai-delivery-hub/policies';
+import type { EffortLevel, OutputLanguage } from '@ai-delivery-hub/policies';
 import { z } from 'zod';
+import { buildOutputLanguageInstruction } from './output-language.js';
 import { structuredOutputSchema } from './structured-output.js';
 
 /** `query` from `@anthropic-ai/claude-agent-sdk`, narrowed to what the runner consumes; tests inject a generator. */
@@ -24,8 +25,9 @@ export interface PlanningRunnerInput extends PlanningRunInput {
 }
 
 export interface PlanningPolicies {
-  docs: { pillars: string; conventions: string; security: string };
+  docs: { pillars: string; conventions: string; security: string; steps: { planning: string } };
   repos: Record<string, { stack: string; defaultBranch: string; testCommand: string }>;
+  output: { language: OutputLanguage };
 }
 
 export interface AgentSdkPlanningRunnerOptions {
@@ -36,6 +38,8 @@ export interface AgentSdkPlanningRunnerOptions {
   policies: PlanningPolicies;
   /** Environment for the Claude Code subprocess; filtered through `agentSubprocessEnv`. Defaults to `process.env`. */
   env?: NodeJS.ProcessEnv;
+  /** Subscription mode: drop `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` so the Claude Code CLI login is used. */
+  stripApiKeyEnv?: boolean;
   pathToClaudeCodeExecutable?: string;
   /** Used when the budget carries no `maxTurns`. */
   defaultMaxTurns?: number;
@@ -67,11 +71,18 @@ export const PLANNING_DISALLOWED_TOOLS = [
 
 const ENV_PASSTHROUGH = new Set(['PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'LC_ALL', 'TMPDIR', 'TERM', 'NODE_OPTIONS']);
 
-/** Only runtime basics plus `ANTHROPIC_*` / `CLAUDE_*`; hub secrets (OpenProject key, database URL) never reach the agent process. */
-export function agentSubprocessEnv(source: NodeJS.ProcessEnv): Record<string, string> {
+/** Credentials that must be absent from the agent subprocess env in `subscription` mode, so the Claude Code CLI falls back to its logged-in profile instead of API billing. */
+const API_KEY_ENV_VARS = new Set(['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
+
+/**
+ * Only runtime basics plus `ANTHROPIC_*` / `CLAUDE_*`; hub secrets (OpenProject key, database URL) never reach the agent process.
+ * With `stripApiKeyEnv`, `ANTHROPIC_API_KEY`/`ANTHROPIC_AUTH_TOKEN` are dropped too (subscription mode).
+ */
+export function agentSubprocessEnv(source: NodeJS.ProcessEnv, opts: { stripApiKeyEnv?: boolean | undefined } = {}): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(source)) {
     if (value === undefined) continue;
+    if (opts.stripApiKeyEnv && API_KEY_ENV_VARS.has(key)) continue;
     if (ENV_PASSTHROUGH.has(key) || key.startsWith('ANTHROPIC_') || key.startsWith('CLAUDE_')) env[key] = value;
   }
   env['CLAUDE_AGENT_SDK_CLIENT_APP'] = 'ai-delivery-hub/0.1.0';
@@ -123,7 +134,7 @@ export class AgentSdkPlanningRunner implements Pick<AgentRunnerPort, 'runPlannin
 
   constructor(private readonly options: AgentSdkPlanningRunnerOptions) {
     this.query = options.query ?? (sdkQuery as AgentQuery);
-    this.env = agentSubprocessEnv(options.env ?? process.env);
+    this.env = agentSubprocessEnv(options.env ?? process.env, { stripApiKeyEnv: options.stripApiKeyEnv });
   }
 
   async runPlanning(input: PlanningRunnerInput): Promise<RunResult<Plan>> {
@@ -241,8 +252,19 @@ export class AgentSdkPlanningRunner implements Pick<AgentRunnerPort, 'runPlannin
       `- test command (for the plan's tests section; you cannot run it): ${repo?.testCommand ?? 'unknown'}`,
       `- HEAD commit (use as baseCommitSha): ${input.baseCommitSha}`,
     ];
-    const { pillars, conventions, security } = this.options.policies.docs;
-    return [ROLE_INSTRUCTIONS, '# Target repository', repoLines.join('\n'), '# Company policies', pillars, conventions, security].join('\n\n');
+    const { pillars, conventions, security, steps } = this.options.policies.docs;
+    return [
+      ROLE_INSTRUCTIONS,
+      buildOutputLanguageInstruction(this.options.policies.output.language),
+      '# Target repository',
+      repoLines.join('\n'),
+      '# Step policy',
+      steps.planning,
+      '# Company policies',
+      pillars,
+      conventions,
+      security,
+    ].join('\n\n');
   }
 
   private buildUserPrompt(input: PlanningRunnerInput): string {

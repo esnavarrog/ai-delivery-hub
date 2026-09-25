@@ -10,6 +10,6 @@ describe('PlanMarkdown', () => {
   });
   it('explains when there is nothing to render', () => {
     render(<PlanMarkdown markdown="   " />);
-    expect(screen.getByText(/no rendered markdown/)).toBeInTheDocument();
+    expect(screen.getByText(/markdown renderizado/)).toBeInTheDocument();
   });
 });

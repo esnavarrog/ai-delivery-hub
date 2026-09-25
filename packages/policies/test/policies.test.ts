@@ -1,8 +1,8 @@
-import { mkdtemp, writeFile, cp } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadPolicies, PoliciesError, riskTierForPaths, type RiskPathRule } from '../src/index.js';
+import { loadPolicies, PoliciesError, riskTierForPaths, STEP_NAMES, type RiskPathRule } from '../src/index.js';
 
 const packageRoot = resolve(import.meta.dirname, '..');
 
@@ -11,6 +11,7 @@ async function copyPoliciesWith(overrides: Record<string, string>): Promise<stri
   for (const file of ['repos.yaml', 'risk-paths.yaml', 'pillars.md', 'conventions.md', 'security.md']) {
     await cp(join(packageRoot, file), join(dir, file));
   }
+  await cp(join(packageRoot, 'steps'), join(dir, 'steps'), { recursive: true });
   for (const [file, content] of Object.entries(overrides)) await writeFile(join(dir, file), content);
   return dir;
 }
@@ -18,7 +19,14 @@ async function copyPoliciesWith(overrides: Record<string, string>): Promise<stri
 describe('loadPolicies', () => {
   it('loads the seed policies shipped with the package', async () => {
     const policies = await loadPolicies(packageRoot);
-    expect(Object.keys(policies.repos)).toEqual(['backend-parkingapp', 'libredte-api']);
+    expect(Object.keys(policies.repos)).toEqual(['backend-parkingapp', 'libredte-api', 'parkingapp-capacitor-pilot']);
+    expect(policies.repos['parkingapp-capacitor-pilot']).toEqual({
+      remote: 'https://github.com/Macstban/autoatencion-capacitor.git',
+      defaultBranch: 'main',
+      testCommand: 'npm test',
+      stack: 'next',
+      branchPattern: '{wpId}-{slug}',
+    });
     expect(policies.repos['backend-parkingapp']).toEqual({
       remote: 'git@github.com-redcomercio:Redcomercio/backend-parkingapp.git',
       defaultBranch: 'develop',
@@ -29,7 +37,7 @@ describe('loadPolicies', () => {
     expect(policies.models.triage).toBe('claude-opus-5');
     expect(policies.models.planning.high).toBe('claude-opus-5');
     expect(policies.models.effort).toEqual({ triage: 'low', planning: 'high' });
-    expect(policies.budgets.triage).toEqual({ maxTokens: 40_000, maxDurationMs: 180_000 });
+    expect(policies.budgets.triage).toEqual({ maxTokens: 80_000, maxDurationMs: 180_000 });
     expect(policies.budgets.planning).toEqual({ maxTokens: 150_000, maxDurationMs: 600_000, maxTurns: 40 });
     expect(policies.openproject.projectIds).toEqual([15, 6]);
     expect(policies.openproject.trigger).toEqual({
@@ -37,12 +45,26 @@ describe('loadPolicies', () => {
       statusName: 'Ready for AI',
       subjectPrefix: '[AI]',
     });
-    expect(policies.openproject.statusSync.plan_approved).toBe('Confirmed');
     expect(policies.roles['Macstban']).toBe('admin');
+    expect(policies.output.language).toBe('es');
     expect(policies.riskPaths.length).toBeGreaterThan(5);
     expect(policies.docs.pillars).toContain('DRAFT');
     expect(policies.docs.conventions).toContain('Conventional commits');
     expect(policies.docs.security).toContain('PII');
+    expect(Object.keys(policies.docs.steps).sort()).toEqual([...STEP_NAMES].sort());
+    expect(policies.docs.steps.triage).toContain('# Step: Triage');
+    expect(policies.docs.steps.planning).toContain('# Step: Planning');
+    expect(policies.docs.steps.implement).toContain('# Step: Implement');
+    expect(policies.docs.steps.review).toContain('# Step: Review');
+    expect(policies.docs.steps.qa).toContain('# Step: QA');
+    expect(policies.docs.steps.release).toContain('# Step: Release');
+  });
+
+  it('fails with a readable PoliciesError when a step doc is missing', async () => {
+    const dir = await copyPoliciesWith({});
+    await rm(join(dir, 'steps', 'qa.md'));
+    await expect(loadPolicies(dir)).rejects.toBeInstanceOf(PoliciesError);
+    await expect(loadPolicies(dir)).rejects.toThrow(/steps\/qa\.md/);
   });
 
   it('fails with a readable error when a repo field is missing', async () => {
@@ -61,7 +83,6 @@ budgets:
 openproject:
   projectIds: [1]
   trigger: { kind: prefix, subjectPrefix: "[AI]" }
-  statusSync: {}
 roles: {}
 `,
     });
@@ -78,6 +99,18 @@ roles: {}
     await expect(loadPolicies(await copyPoliciesWith({ 'repos.yaml': raw.replace('triage: low', 'triage: extreme') }))).rejects.toThrow(/effort/);
   });
 
+  it('defaults output.language to es when the output section is omitted and rejects unknown languages', async () => {
+    const raw = await loadRawRepos();
+    const noOutput = raw.replace(/\n(?:# [^\n]*\n)*output:\n {2}language: es\n/, '\n');
+    expect(noOutput).not.toContain('output:');
+    const policies = await loadPolicies(await copyPoliciesWith({ 'repos.yaml': noOutput }));
+    expect(policies.output).toEqual({ language: 'es' });
+    const withLanguage = `${noOutput}\noutput:\n  language: en\n`;
+    const enPolicies = await loadPolicies(await copyPoliciesWith({ 'repos.yaml': withLanguage }));
+    expect(enPolicies.output.language).toBe('en');
+    await expect(loadPolicies(await copyPoliciesWith({ 'repos.yaml': `${noOutput}\noutput:\n  language: fr\n` }))).rejects.toThrow(/output/);
+  });
+
   it('rejects a status trigger without a status name', async () => {
     const dir = await copyPoliciesWith({
       'repos.yaml': (await loadRawRepos()).replace('    statusName: Ready for AI\n', ''),
@@ -85,12 +118,6 @@ roles: {}
     await expect(loadPolicies(dir)).rejects.toThrow(/statusName/);
   });
 
-  it('rejects an unknown ticket state in statusSync', async () => {
-    const dir = await copyPoliciesWith({
-      'repos.yaml': (await loadRawRepos()).replace('plan_approved: Confirmed', 'not_a_state: Confirmed'),
-    });
-    await expect(loadPolicies(dir)).rejects.toBeInstanceOf(PoliciesError);
-  });
 });
 
 async function loadRawRepos(): Promise<string> {

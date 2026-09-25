@@ -10,7 +10,13 @@ export function renderApp(element: ReactNode, { path = '/', initialEntries = [pa
   const pageRoute = createRoute({ getParentRoute: () => rootRoute, path, component: () => <>{element}</> });
   const ticketRoute = createRoute({ getParentRoute: () => rootRoute, path: '/tickets/$id', component: () => <p>ticket page</p> });
   const planRoute = createRoute({ getParentRoute: () => rootRoute, path: '/tickets/$id/plan', component: () => <p>plan page</p> });
-  const routes = [pageRoute, ...(path === '/tickets/$id' ? [] : [ticketRoute]), ...(path === '/tickets/$id/plan' ? [] : [planRoute])];
+  const solicitudesRoute = createRoute({ getParentRoute: () => rootRoute, path: '/solicitudes', component: () => <p>solicitudes page</p> });
+  const routes = [
+    pageRoute,
+    ...(path === '/tickets/$id' ? [] : [ticketRoute]),
+    ...(path === '/tickets/$id/plan' ? [] : [planRoute]),
+    ...(path === '/solicitudes' ? [] : [solicitudesRoute]),
+  ];
   const router = createRouter({ routeTree: rootRoute.addChildren(routes), history: createMemoryHistory({ initialEntries }) });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, refetchInterval: false }, mutations: { retry: false } } });
   const utils = render(

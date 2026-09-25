@@ -1,7 +1,9 @@
 // ticket
 export * from './ticket/ticket-state.js';
+export * from './ticket/ticket-source.js';
 export * from './ticket/actor.js';
 export * from './ticket/ticket.js';
+export * from './ticket/manual-intake.js';
 export * from './ticket/transitions.js';
 export * from './ticket/reduce.js';
 
@@ -11,6 +13,7 @@ export * from './events/event-store.js';
 
 // triage
 export * from './triage/triage-result.js';
+export * from './triage/rice-score.js';
 
 // plan
 export * from './plan/plan.js';

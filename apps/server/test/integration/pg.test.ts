@@ -4,13 +4,12 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createDb, type DbHandle } from '../../src/adapters/db/client.js';
 import { PgEventStore } from '../../src/adapters/db/event-store.js';
+import { PgManualKeySequence } from '../../src/adapters/db/manual-key-sequence.js';
 import { runMigrations } from '../../src/adapters/db/migrations.js';
-import { PgOutboxRepository } from '../../src/adapters/db/outbox-repository.js';
 import { PgPlanCommentsRepository, PgPlanVersionsRepository, PgRunsRepository } from '../../src/adapters/db/plan-repositories.js';
 import { PgTicketProjection, ProjectingEventStore } from '../../src/adapters/db/ticket-projection.js';
 import { PgWatermarkStore } from '../../src/adapters/db/watermarks.js';
 import { IngestWorkPackage } from '../../src/modules/ingest/ingest-work-package.js';
-import { outboxRowsForEvent } from '../../src/modules/sync/outbox.js';
 import { FixedClock, SequentialIds } from '../helpers/memory.js';
 
 const url = process.env['DATABASE_URL_TEST'];
@@ -33,9 +32,7 @@ function event(ticketId: string, seq: number, type: TicketEvent['type'], payload
 }
 
 const receivedPayload = (opWorkPackageId: number, subject = 'Subject') => ({
-  opWorkPackageId,
-  opProjectId: 15,
-  opLockVersion: 1,
+  source: { kind: 'openproject' as const, workPackageId: opWorkPackageId, projectId: 15, lockVersion: 1 },
   subject,
   description: 'desc',
   status: 'New',
@@ -59,7 +56,7 @@ describe.skipIf(!url)('Postgres adapters', () => {
   });
 
   beforeEach(async () => {
-    await handle.db.execute(sql`TRUNCATE tickets, ticket_events, op_sync_outbox, ingest_watermarks, plan_versions, plan_comments, runs`);
+    await handle.db.execute(sql`TRUNCATE tickets, ticket_events, ingest_watermarks, plan_versions, plan_comments, runs, manual_ticket_counter`);
   });
 
   describe('PgEventStore', () => {
@@ -130,17 +127,67 @@ describe.skipIf(!url)('Postgres adapters', () => {
       expect(await projection.findTicketIdByWorkPackage(1)).toBeUndefined();
       const listed = await projection.list({ state: 'received' });
       expect(listed.map((t) => t.id)).toEqual([ticketId]);
-      expect(listed[0]).toMatchObject({ subject: '[AI] Subject', priority: 'high', opLockVersion: 1, flags: [] });
+      expect(listed[0]).toMatchObject({ subject: '[AI] Subject', priority: 'high', displayKey: 'OP-4711', source: { lockVersion: 1 }, flags: [] });
       expect(await projection.list({ state: 'planning' })).toEqual([]);
 
       const updated = await ingest.execute({ ...wp, lockVersion: 2, subject: '[AI] Renamed' });
       expect(updated.kind).toBe('updated');
       const found = await projection.get(ticketId);
-      expect(found?.snapshot).toMatchObject({ subject: '[AI] Renamed', opLockVersion: 2, state: 'received' });
+      expect(found?.snapshot).toMatchObject({ subject: '[AI] Renamed', source: { lockVersion: 2 }, state: 'received' });
       expect(found?.events.map((e) => e.type)).toEqual(['ticket_received', 'ticket_updated_from_op']);
       expect((await projection.eventsAfter(ticketId, 1)).map((e) => e.seq)).toEqual([2]);
       expect(hookCalls).toEqual(['ticket_received:received', 'ticket_updated_from_op:received']);
       expect(await projection.get('nope')).toBeUndefined();
+    });
+
+    it('persists clarification and RICE fields set by requester_questions_asked / triage_completed', async () => {
+      const projection = new PgTicketProjection(handle.db);
+      const projecting = new ProjectingEventStore(store, projection);
+      const ticketId = 't-rice-1';
+      const assessment = {
+        functional: { clarity: 2, acceptanceCriteria: [], questions: ['What repo?'] },
+        technical: { feasibility: 'uncertain' as const, risks: [], dependencies: [] },
+        management: { value: 4, reach: 3, confidence: 0.8 as const, effort: 'M' as const, recommendation: 'needs_info' as const, rationale: 'unclear scope' },
+      };
+      await projecting.append(ticketId, 0, [event(ticketId, 1, 'ticket_received', receivedPayload(9001))]);
+      await projecting.append(ticketId, 1, [event(ticketId, 2, 'triage_started')]);
+      await projecting.append(ticketId, 2, [
+        event(ticketId, 3, 'requester_questions_asked', { round: 1, questions: [{ id: 'q1', text: 'What repo?' }], assessment }),
+      ]);
+
+      const afterQuestions = await projection.get(ticketId);
+      expect(afterQuestions?.snapshot).toMatchObject({
+        state: 'awaiting_requester',
+        clarificationRound: 1,
+        pendingQuestionCount: 1,
+      });
+
+      await projecting.append(ticketId, 3, [
+        event(ticketId, 4, 'requester_answers_submitted', { round: 1, answers: [{ questionId: 'q1', text: 'repo-a' }] }),
+      ]);
+      await projecting.append(ticketId, 4, [
+        event(ticketId, 5, 'triage_completed', {
+          category: 'feature',
+          riskTier: 'low',
+          targetRepo: 'repo-a',
+          summary: 'Add the thing',
+          duplicateCandidates: [],
+          riskSignals: [],
+          assessment,
+        }),
+      ]);
+
+      const listed = await projection.list({});
+      const snap = listed.find((t) => t.id === ticketId);
+      expect(snap).toMatchObject({
+        clarificationRound: 1,
+        pendingQuestionCount: 0,
+        value: 4,
+        reach: 3,
+        confidence: 0.8,
+        effort: 'M',
+        riceScore: 4.8,
+      });
     });
   });
 
@@ -156,25 +203,14 @@ describe.skipIf(!url)('Postgres adapters', () => {
     });
   });
 
-  describe('PgOutboxRepository', () => {
-    it('enqueues idempotently by key and tracks posted/failed', async () => {
-      const repo = new PgOutboxRepository(handle.db);
-      const received = event('t-1', 1, 'ticket_received', receivedPayload(4711));
-      const snapshot = {
-        id: 't-1', opWorkPackageId: 4711, opProjectId: 15, opLockVersion: 1, subject: 'S', state: 'received' as const, flags: [],
-        priority: 'normal' as const, planVersionCount: 0, unresolvedCommentCount: 0, createdAt: received.createdAt, updatedAt: received.createdAt,
-      };
-      const rows = outboxRowsForEvent(received, snapshot, { statusSync: {}, hubPublicUrl: 'http://localhost:5173' });
-      expect(await repo.enqueue(rows)).toEqual(['t-1:1:op_comment']);
-      expect(await repo.enqueue(rows)).toEqual([]);
-
-      const stored = await repo.get('t-1:1:op_comment');
-      expect(stored).toMatchObject({ status: 'pending', attempts: 0, kind: 'op_comment', opWorkPackageId: 4711 });
-
-      await repo.markFailed('t-1:1:op_comment', 'boom');
-      expect(await repo.get('t-1:1:op_comment')).toMatchObject({ status: 'failed', attempts: 1, lastError: 'boom' });
-      await repo.markPosted('t-1:1:op_comment', '999');
-      expect(await repo.get('t-1:1:op_comment')).toMatchObject({ status: 'posted', attempts: 2, externalRef: '999' });
+  describe('PgManualKeySequence', () => {
+    it('hands out incrementing M-000N keys, including across concurrent callers', async () => {
+      const keys = new PgManualKeySequence(handle.db);
+      expect(await keys.next()).toBe('M-0001');
+      expect(await keys.next()).toBe('M-0002');
+      const concurrent = await Promise.all([keys.next(), keys.next(), keys.next()]);
+      expect(new Set(concurrent).size).toBe(3);
+      expect([...concurrent].sort()).toEqual(['M-0003', 'M-0004', 'M-0005']);
     });
   });
 

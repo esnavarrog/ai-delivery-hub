@@ -9,8 +9,10 @@ import {
   baseSnapshot,
   makeEvent,
   ownerDev,
+  requesterActor,
   SHA_A,
   systemActor,
+  validAssessment,
   validTriageResult,
 } from '../fixtures.js';
 
@@ -108,6 +110,66 @@ describe('reduceTicket', () => {
       InvalidTransitionError,
     );
   });
+
+  it('applies management scores and riceScore from an assessment on triage_completed', () => {
+    const triage = validTriageResult({ assessment: validAssessment() });
+    const next = reduceTicket(baseSnapshot({ state: 'triaging' }), makeEvent('triage_completed', aiActor, triage));
+    expect(next.state).toBe('triaged');
+    expect(next.value).toBe(4);
+    expect(next.reach).toBe(3);
+    expect(next.confidence).toBe(0.8);
+    expect(next.effort).toBe('M');
+    expect(next.riceScore).toBe(4.8);
+  });
+
+  it('keeps scores undefined when triage_completed carries no assessment (backward compatible)', () => {
+    const next = reduceTicket(baseSnapshot({ state: 'triaging' }), makeEvent('triage_completed', aiActor, validTriageResult()));
+    expect(next.riceScore).toBeUndefined();
+    expect(next.value).toBeUndefined();
+  });
+
+  it('overrides scores and recomputes riceScore on triage_confirmed', () => {
+    const s0 = baseSnapshot({ state: 'awaiting_owner', value: 4, reach: 3, confidence: 0.8, effort: 'M', riceScore: 4.8 });
+    const s1 = reduceTicket(
+      s0,
+      makeEvent('triage_confirmed', ownerDev, { scores: { value: 5, reach: 4, confidence: 1, effort: 'L' } }),
+    );
+    expect(s1.state).toBe('awaiting_owner');
+    expect(s1.value).toBe(5);
+    expect(s1.reach).toBe(4);
+    expect(s1.confidence).toBe(1);
+    expect(s1.effort).toBe('L');
+    expect(s1.riceScore).toBe(5);
+  });
+
+  it('leaves scores untouched when triage_confirmed carries no scores override', () => {
+    const s0 = baseSnapshot({ state: 'awaiting_owner', value: 4, reach: 3, confidence: 0.8, effort: 'M', riceScore: 4.8 });
+    const s1 = reduceTicket(s0, makeEvent('triage_confirmed', ownerDev, {}));
+    expect(s1).toMatchObject({ value: 4, reach: 3, confidence: 0.8, effort: 'M', riceScore: 4.8 });
+  });
+
+  it('records the round and pending question count on requester_questions_asked', () => {
+    const ev = makeEvent('requester_questions_asked', aiActor, {
+      round: 1,
+      questions: [{ id: 'q1', text: 'How many users?' }],
+    });
+    const next = reduceTicket(baseSnapshot({ state: 'triaging' }), ev);
+    expect(next.state).toBe('awaiting_requester');
+    expect(next.clarificationRound).toBe(1);
+    expect(next.pendingQuestionCount).toBe(1);
+  });
+
+  it('clears pending questions and re-enters triaging on requester_answers_submitted', () => {
+    const s0 = baseSnapshot({ state: 'awaiting_requester', clarificationRound: 1, pendingQuestionCount: 1 });
+    const ev = makeEvent('requester_answers_submitted', requesterActor, {
+      round: 1,
+      answers: [{ questionId: 'q1', text: '12 people' }],
+    });
+    const next = reduceTicket(s0, ev);
+    expect(next.state).toBe('triaging');
+    expect(next.pendingQuestionCount).toBe(0);
+    expect(next.clarificationRound).toBe(1);
+  });
 });
 
 describe('replay', () => {
@@ -150,7 +212,11 @@ describe('replay', () => {
               ? { version: 1, baseCommitSha: SHA_A }
               : t.event === 'ticket_claimed'
                 ? { ownerUserId: 'dev-owner' }
-                : {};
+                : t.event === 'requester_questions_asked'
+                  ? { round: 1, questions: [{ id: 'q1', text: 'x' }] }
+                  : t.event === 'requester_answers_submitted'
+                    ? { round: 1, answers: [{ questionId: 'q1', text: 'x' }] }
+                    : {};
         events.push(makeEvent(t.event, { kind: t.allowedActors[0]!, id: 'x' }, payload));
         state = nextState(state, t.event)!;
       }

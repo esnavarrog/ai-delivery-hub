@@ -7,9 +7,8 @@ export const NOW = '2026-09-14T12:00:00.000Z';
 export function ticket(overrides: Partial<TicketSnapshot> = {}): TicketSnapshot {
   return {
     id: 't1',
-    opWorkPackageId: 8378,
-    opProjectId: 15,
-    opLockVersion: 3,
+    source: { kind: 'openproject', workPackageId: 8378, projectId: 15, lockVersion: 3 },
+    displayKey: 'OP-8378',
     subject: 'Add refund endpoint',
     state: 'plan_review',
     flags: [],

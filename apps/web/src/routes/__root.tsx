@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { createRootRouteWithContext, Outlet } from '@tanstack/react-router';
 import { Header } from '@/app/Header';
 import { useCurrentLogin } from '@/app/current-user';
+import { es } from '@/i18n/es';
 import { EmptyState } from '@/ui/empty-state';
 
 export interface RouterContext {
@@ -10,7 +11,7 @@ export interface RouterContext {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
-  notFoundComponent: () => <EmptyState title="Page not found">There is nothing at this address.</EmptyState>,
+  notFoundComponent: () => <EmptyState title={es.root.notFoundTitle}>{es.root.notFoundBody}</EmptyState>,
 });
 
 function RootLayout() {
@@ -19,13 +20,7 @@ function RootLayout() {
     <div className="min-h-dvh">
       <Header />
       <main className="mx-auto w-full max-w-7xl px-[var(--gutter)] py-6">
-        {login.length === 0 ? (
-          <EmptyState title="Pick a user to continue">
-            Phase 1 uses development auth. Choose or type a login in the header; its role comes from <span className="font-mono">repos.yaml</span>.
-          </EmptyState>
-        ) : (
-          <Outlet />
-        )}
+        {login.length === 0 ? <EmptyState title={es.root.pickUserTitle}>{es.root.pickUserBody}</EmptyState> : <Outlet />}
       </main>
     </div>
   );

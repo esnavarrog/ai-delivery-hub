@@ -12,6 +12,12 @@ repos:
     testCommand: pytest
     stack: fastapi
     branchPattern: "feat/{slug}"
+  parkingapp-capacitor-pilot:
+    remote: https://github.com/Macstban/autoatencion-capacitor.git
+    defaultBranch: main
+    testCommand: npm test
+    stack: next
+    branchPattern: "{wpId}-{slug}"
 
 # Exact Claude model ids (no date suffix). Planning picks the model by triage risk tier.
 models:
@@ -28,7 +34,7 @@ models:
 # Per-run ceilings; exceeding either one raises `budget_exhausted`.
 budgets:
   triage:
-    maxTokens: 40000
+    maxTokens: 80000
     maxDurationMs: 180000
   planning:
     maxTokens: 150000
@@ -41,13 +47,12 @@ openproject:
     kind: status_or_prefix
     statusName: Ready for AI
     subjectPrefix: "[AI]"
-  # Ticket state -> OpenProject status name pushed through the sync outbox.
-  statusSync:
-    planning: In specification
-    plan_review: Specified
-    plan_approved: Confirmed
-    rejected: Rejected
 
 # GitHub login -> hub role. Anyone not listed is a `requester`.
 roles:
   Macstban: admin
+
+# AI output language: es | en. Applies to free-text values only (summaries, rationale, plan prose);
+# JSON keys, enum values, file paths, commands and code are unaffected.
+output:
+  language: es

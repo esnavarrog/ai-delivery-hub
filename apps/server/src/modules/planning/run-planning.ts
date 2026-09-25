@@ -51,6 +51,25 @@ export const PLANNING_SYSTEM_ACTOR: Actor = { kind: 'system', id: 'planning-sche
 export const PLANNING_AI_ACTOR: Actor = { kind: 'ai', id: 'planning-runner' };
 
 /**
+ * Upcasts an already-persisted `triage_completed` payload from before manual tickets existed
+ * (`duplicateCandidates[].opWorkPackageId`, no `displayKey`) into the current shape, so old triage
+ * results still parse. New events are always written in the current shape; this only reads.
+ */
+function upcastLegacyTriageResult(payload: unknown): unknown {
+  if (!payload || typeof payload !== 'object') return payload;
+  const { duplicateCandidates, ...rest } = payload as Record<string, unknown>;
+  if (!Array.isArray(duplicateCandidates)) return payload;
+  return {
+    ...rest,
+    duplicateCandidates: duplicateCandidates.map((c) => {
+      if (!c || typeof c !== 'object' || 'displayKey' in c || !('opWorkPackageId' in c)) return c;
+      const { opWorkPackageId, ...candidateRest } = c as { opWorkPackageId: number } & Record<string, unknown>;
+      return { ...candidateRest, displayKey: `OP-${opWorkPackageId}` };
+    }),
+  };
+}
+
+/**
  * Runs the planning agent for a ticket in `planning`: read-only worktree → agent → `plan_versions`
  * row + `plan_version_created` (→ `plan_review`), or `run_failed` (→ `plan_changes_requested`).
  */
@@ -158,7 +177,7 @@ export class RunPlanning {
       const previous = await deps.planVersions.latest(loaded.snapshot.id);
       const unresolved = (await deps.planComments.listByTicket(loaded.snapshot.id)).filter((c) => c.resolvedByVersion === null);
       const triageEvent = [...loaded.events].reverse().find((e) => e.type === 'triage_completed');
-      const triage = triageEvent ? TriageResult.safeParse(triageEvent.payload) : undefined;
+      const triage = triageEvent ? TriageResult.safeParse(upcastLegacyTriageResult(triageEvent.payload)) : undefined;
       const input: PlanningRunnerInput = {
         runId,
         ticket: loaded.snapshot,

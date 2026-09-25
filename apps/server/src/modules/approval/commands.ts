@@ -8,6 +8,7 @@ import type {
   PlanCommentDto,
   RequestChangesBody,
   RunKind,
+  SubmitAnswersBody,
 } from '@ai-delivery-hub/contracts';
 import type { Actor, Clock, EventStore, IdGenerator, Role, TicketEventType, TicketSnapshot } from '@ai-delivery-hub/domain';
 import type { TriageScheduler } from '../ingest/ingest-work-package.js';
@@ -42,7 +43,7 @@ export function isWaitingOn(snapshot: TicketSnapshot, user: HubUser): boolean {
 }
 
 /** Events a role may even attempt; anything else is a 403 before the domain guards run. */
-const LIMITED_ROLE_EVENTS: readonly TicketEventType[] = ['plan_comment_added', 'flag_set', 'flag_cleared'];
+const LIMITED_ROLE_EVENTS: readonly TicketEventType[] = ['plan_comment_added', 'flag_set', 'flag_cleared', 'requester_answers_submitted'];
 
 function assertRoleMayAttempt(user: HubUser, eventType: TicketEventType): void {
   if (user.role === 'requester' || user.role === 'qa') {
@@ -91,6 +92,7 @@ export class TicketCommands {
     if (body.category !== undefined) payload['category'] = body.category;
     if (body.riskTier !== undefined) payload['riskTier'] = body.riskTier;
     if (body.targetRepo !== undefined) payload['targetRepo'] = body.targetRepo;
+    if (body.scores !== undefined) payload['scores'] = body.scores;
     return this.simple(ticketId, user, 'triage_confirmed', { payload });
   }
 
@@ -173,6 +175,22 @@ export class TicketCommands {
     const result = await appendCommand(this.deps, ticketId, ({ snapshot }) => {
       if (snapshot.state !== 'received') throw new TransitionDeniedError(ticketId, 'triage_started', `ticket is in ${snapshot.state}; only received tickets can be re-triaged`);
       return [];
+    });
+    await this.deps.triage.enqueueTriage(ticketId);
+    return { ...result, enqueued: 'triage' };
+  }
+
+  /**
+   * The requester (or a lead/admin) answers the AI's clarifying questions; the domain guard checks
+   * ownership and that `body.round` matches the ticket's current `clarificationRound`. On success the
+   * ticket re-enters `triaging` and triage is re-enqueued so the AI re-runs with the answers as context.
+   */
+  async submitAnswers(ticketId: string, user: HubUser, body: SubmitAnswersBody): Promise<EnqueuedCommandResult> {
+    assertRoleMayAttempt(user, 'requester_answers_submitted');
+    const result = await appendCommand(this.deps, ticketId, ({ guard, event }) => {
+      const payload = { round: body.round, answers: body.answers };
+      guard(actorFor(user), 'requester_answers_submitted', { actorRole: user.role, payload });
+      return [event('requester_answers_submitted', actorFor(user), { payload })];
     });
     await this.deps.triage.enqueueTriage(ticketId);
     return { ...result, enqueued: 'triage' };

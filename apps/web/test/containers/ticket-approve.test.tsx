@@ -41,12 +41,12 @@ describe('TicketPageContainer approve flow', () => {
   it('posts an empty approve body for medium risk, toasts and refreshes the state chip', async () => {
     renderApp(<TicketPageContainer ticketId="t1" />, { path: '/tickets/$id', initialEntries: ['/tickets/t1'] });
     await screen.findByText('Add refund endpoint');
-    expect(screen.getByText('AI created plan v1')).toBeInTheDocument();
+    expect(screen.getByText('La IA creó el plan v1')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Approve plan' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Aprobar plan' }));
     await waitFor(() => expect(approveBodies).toEqual([{}]));
-    expect(await screen.findByText('Plan approved.')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getAllByText('plan approved').length).toBeGreaterThan(0));
+    expect(await screen.findByText('Plan aprobado.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Plan aprobado').length).toBeGreaterThan(0));
   });
 
   it('asks for a second approver on high risk and sends it in the body', async () => {
@@ -55,19 +55,19 @@ describe('TicketPageContainer approve flow', () => {
     await screen.findByText('Add refund endpoint');
     expect(screen.getByTestId('risk-banner')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Approve plan' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Aprobar plan' }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.type(screen.getByLabelText(/second approver login/i), 'ana');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Approve plan' }));
+    await userEvent.type(screen.getByLabelText(/usuario del segundo aprobador/i), 'ana');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Aprobar plan' }));
     await waitFor(() => expect(approveBodies).toEqual([{ secondApproverId: 'ana' }]));
-    expect((await screen.findAllByText('Plan approved.')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Plan aprobado.')).length).toBeGreaterThan(0);
   });
 
   it('surfaces a 409 from the server as an error toast', async () => {
     server.use(http.post('*/api/tickets/t1/approve', () => HttpResponse.json({ error: { code: 'conflict', message: 'plan has 1 unresolved comment(s)' } }, { status: 409 })));
     renderApp(<TicketPageContainer ticketId="t1" />, { path: '/tickets/$id', initialEntries: ['/tickets/t1'] });
     await screen.findByText('Add refund endpoint');
-    await userEvent.click(screen.getByRole('button', { name: 'Approve plan' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Aprobar plan' }));
     expect(await screen.findByText('plan has 1 unresolved comment(s)')).toBeInTheDocument();
   });
 });

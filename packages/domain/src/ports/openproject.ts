@@ -18,10 +18,8 @@ export const WorkPackage = z.object({
 });
 export type WorkPackage = z.infer<typeof WorkPackage>;
 
+/** Read-only: the hub never writes to OpenProject (see the `op-readonly-obsidian` feature). */
 export interface OpenProjectPort {
   getWorkPackage(id: number): Promise<WorkPackage>;
   listUpdatedSince(projectId: number, sinceIso: string): Promise<WorkPackage[]>;
-  addComment(workPackageId: number, body: string): Promise<{ commentId: string }>;
-  /** Uses OpenProject's optimistic locking; rejects when `lockVersion` is stale. */
-  setStatus(workPackageId: number, statusId: number, lockVersion: number): Promise<WorkPackage>;
 }

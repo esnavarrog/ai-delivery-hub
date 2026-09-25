@@ -1,5 +1,5 @@
 import { isTerminal, type TicketState } from '@ai-delivery-hub/domain';
-import { humanize } from '@/lib/format';
+import { ticketStateLabels } from '@/i18n/labels';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/ui/badge';
 
@@ -16,8 +16,8 @@ const TONE: Partial<Record<TicketState, string>> = {
 export function StateChip({ state, className }: { state: TicketState; className?: string }) {
   const tone = TONE[state] ?? (isTerminal(state) ? 'bg-muted text-muted-foreground' : 'bg-secondary text-secondary-foreground');
   return (
-    <Badge variant="outline" className={cn('border-transparent font-medium capitalize', tone, className)} data-state={state}>
-      {humanize(state)}
+    <Badge variant="outline" className={cn('border-transparent font-medium', tone, className)} data-state={state}>
+      {ticketStateLabels[state]}
     </Badge>
   );
 }

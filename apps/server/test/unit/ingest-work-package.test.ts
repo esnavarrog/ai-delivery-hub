@@ -50,9 +50,7 @@ describe('IngestWorkPackage', () => {
     expect(event?.seq).toBe(1);
     expect(event?.actor).toEqual({ kind: 'system', id: 'ingest' });
     expect(event?.payload).toEqual({
-      opWorkPackageId: 4711,
-      opProjectId: 15,
-      opLockVersion: 3,
+      source: { kind: 'openproject', workPackageId: 4711, projectId: 15, lockVersion: 3 },
       subject: '[AI] Login fails without cookie',
       description: 'Steps...',
       status: 'New',
@@ -94,7 +92,7 @@ describe('IngestWorkPackage', () => {
     });
     const { snapshot, description } = projectTicket(events);
     expect(snapshot.subject).toBe('Login fails without cookie');
-    expect(snapshot.opLockVersion).toBe(4);
+    expect(snapshot.source).toMatchObject({ lockVersion: 4 });
     expect(snapshot.state).toBe('received');
     expect(description).toBe('More steps');
   });
@@ -121,9 +119,8 @@ describe('projectTicket', () => {
     await ingest.execute(wp());
     const { snapshot } = projectTicket(store.all());
     expect(snapshot).toMatchObject({
-      opWorkPackageId: 4711,
-      opProjectId: 15,
-      opLockVersion: 3,
+      source: { kind: 'openproject', workPackageId: 4711, projectId: 15, lockVersion: 3 },
+      displayKey: 'OP-4711',
       subject: '[AI] Login fails without cookie',
       state: 'received',
       flags: [],

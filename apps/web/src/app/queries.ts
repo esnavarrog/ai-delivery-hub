@@ -4,19 +4,24 @@ import type {
   CommandResponse,
   CommentResponse,
   ConfirmTriageBody,
+  CreateTicketBody,
+  CreateTicketResponse,
   DecisionBody,
   DuplicateBody,
   EnqueuedResponse,
+  FetchResponse,
   FlagBody,
   MeResponse,
   RequestChangesBody,
   RunsResponse,
+  SubmitAnswersBody,
   TicketDetailResponse,
   TicketListResponse,
   TicketPlanResponse,
 } from '@ai-delivery-hub/contracts';
 import { useMutation, useQuery, useQueryClient, type UseMutationOptions } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { es } from '@/i18n/es';
 import { api, ApiError } from './api-client';
 import { useCurrentLogin } from './current-user';
 
@@ -63,13 +68,52 @@ export function usePlan(id: string) {
   return useQuery({ queryKey: keys.plan(login, id), queryFn: () => api.get<TicketPlanResponse>(`/api/tickets/${encodeURIComponent(id)}/plan`), enabled: login.length > 0 });
 }
 
+/** `GET /api/runs` 403s for a `requester`; skip the request entirely once the role is known. */
 export function useRuns(ticketId?: string) {
   const login = useCurrentLogin();
+  const me = useMe();
   return useQuery({
     queryKey: keys.runs(login, ticketId),
     queryFn: () => api.get<RunsResponse>(`/api/runs${qs({ ticketId })}`),
-    enabled: login.length > 0,
+    enabled: login.length > 0 && me.data !== undefined && me.data.role !== 'requester',
     refetchInterval: 10_000,
+  });
+}
+
+/** Creates a manual feature-request ticket (`POST /api/tickets`); invalidates the requester's ticket list. */
+export function useCreateTicket() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateTicketBody) => api.post<CreateTicketResponse>('/api/tickets', body),
+    onSuccess: async () => {
+      toast.success(es.requestForm.submitted);
+      await queryClient.invalidateQueries({ queryKey: ['tickets'] });
+    },
+    onError: (err) => toast.error(describeError(err)),
+  });
+}
+
+/** One-line summary of a fetch, for the toast. */
+export function describeFetchSummary(summary: FetchResponse): string {
+  const parts = [`OpenProject: ${summary.openproject.fetched} obtenidos, ${summary.openproject.created} nuevos, ${summary.openproject.updated} actualizados.`];
+  if (summary.obsidian) {
+    const errorNote = summary.obsidian.errors.length > 0 ? `, ${summary.obsidian.errors.length} inválidos` : '';
+    parts.push(`Obsidian: ${summary.obsidian.imported} importados, ${summary.obsidian.skipped} omitidos${errorNote}.`);
+  }
+  return parts.join(' ');
+}
+
+/** Runs the manual ingest (`POST /api/ingest/fetch`): OpenProject pull + Obsidian inbox import when configured. */
+export function useIngestFetch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<FetchResponse>('/api/ingest/fetch'),
+    onSuccess: async (summary) => {
+      toast.success(describeFetchSummary(summary));
+      for (const err of summary.obsidian?.errors ?? []) toast.error(`${err.file}: ${err.message}`);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['ticket'] }), queryClient.invalidateQueries({ queryKey: ['tickets'] })]);
+    },
+    onError: (err) => toast.error(describeError(err)),
   });
 }
 
@@ -87,7 +131,8 @@ export type TicketCommand =
   | { kind: 'retriage' }
   | { kind: 'replan'; body: DecisionBody }
   | { kind: 'comment'; body: AddCommentBody }
-  | { kind: 'resolve_comment'; commentId: string };
+  | { kind: 'resolve_comment'; commentId: string }
+  | { kind: 'answer_questions'; body: SubmitAnswersBody };
 
 const ROUTES: Record<TicketCommand['kind'], string> = {
   claim: 'claim',
@@ -103,23 +148,10 @@ const ROUTES: Record<TicketCommand['kind'], string> = {
   replan: 'replan',
   comment: 'comments',
   resolve_comment: 'comments',
+  answer_questions: 'answers',
 };
 
-export const SUCCESS_MESSAGES: Record<TicketCommand['kind'], string> = {
-  claim: 'Ticket claimed. Planning starts now.',
-  confirm_triage: 'Triage confirmed.',
-  request_changes: 'Changes requested.',
-  approve: 'Plan approved.',
-  reject: 'Ticket rejected.',
-  duplicate: 'Ticket marked as duplicate.',
-  already_implemented: 'Ticket marked as already implemented.',
-  reopen: 'Plan reopened for review.',
-  flag: 'Flag updated.',
-  retriage: 'Triage queued again.',
-  replan: 'New plan version requested.',
-  comment: 'Comment added.',
-  resolve_comment: 'Comment resolved.',
-};
+export const SUCCESS_MESSAGES: Record<TicketCommand['kind'], string> = es.toasts;
 
 export type CommandResult = CommandResponse | CommentResponse | EnqueuedResponse;
 
@@ -135,7 +167,7 @@ export function runTicketCommand(ticketId: string, command: TicketCommand): Prom
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error) return err.message;
-  return 'Something went wrong';
+  return es.errors.somethingWrong;
 }
 
 /** One mutation for every ticket command: toast on both outcomes, then invalidate the ticket queries. */

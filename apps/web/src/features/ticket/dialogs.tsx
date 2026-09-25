@@ -1,11 +1,15 @@
 import type { ApproveBody, ConfirmTriageBody, DuplicateBody, RequestChangesBody } from '@ai-delivery-hub/contracts';
-import { RiskTier, TicketCategory, type TicketSnapshot } from '@ai-delivery-hub/domain';
+import { Confidence, Effort, RiskTier, riceScore, TicketCategory, type RiceInput, type TicketSnapshot } from '@ai-delivery-hub/domain';
 import { useState } from 'react';
+import { es } from '@/i18n/es';
+import { confidenceLabel, effortLabels, riskTierLabels, ticketCategoryLabels } from '@/i18n/labels';
 import { Button } from '@/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Input } from '@/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
 import { Textarea } from '@/ui/textarea';
+
+const CONFIDENCE_OPTIONS: readonly Confidence[] = [0.5, 0.8, 1];
 
 interface BaseDialogProps {
   open: boolean;
@@ -57,17 +61,18 @@ export function ReasonDialog({
         >
           {withDuplicateOf ? (
             <label className="flex flex-col gap-1 text-sm">
-              Duplicate of (ticket id, optional)
-              <Input value={duplicateOf} onChange={(e) => setDuplicateOf(e.target.value)} placeholder="ticket id" />
+              {es.dialogs.duplicateOfLabel}
+              <Input value={duplicateOf} onChange={(e) => setDuplicateOf(e.target.value)} placeholder={es.dialogs.duplicateOfPlaceholder} />
             </label>
           ) : null}
           <label className="flex flex-col gap-1 text-sm">
-            Reason{reasonRequired ? '' : ' (optional)'}
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Recorded on the timeline and posted to OpenProject" />
+            {es.dialogs.reasonLabel}
+            {reasonRequired ? '' : es.dialogs.optionalSuffix}
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder={es.dialogs.reasonPlaceholder} />
           </label>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+              {es.dialogs.cancel}
             </Button>
             <Button type="submit" variant={destructive ? 'destructive' : 'default'} disabled={!canConfirm}>
               {confirmLabel}
@@ -87,11 +92,9 @@ export function RequestChangesDialog({ open, busy, onOpenChange, unresolvedComme
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Request changes</DialogTitle>
+          <DialogTitle>{es.dialogs.requestChanges.title}</DialogTitle>
           <DialogDescription>
-            {unresolvedComments > 0
-              ? `${unresolvedComments} unresolved comment(s) will feed the next plan version. Add an overall reason if you want.`
-              : 'There are no unresolved comments, so a reason is required. It is sent to the AI for the next version.'}
+            {unresolvedComments > 0 ? es.dialogs.requestChanges.descriptionWithComments(unresolvedComments) : es.dialogs.requestChanges.descriptionWithoutComments}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -103,15 +106,16 @@ export function RequestChangesDialog({ open, busy, onOpenChange, unresolvedComme
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
-            Reason{reasonRequired ? '' : ' (optional)'}
-            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus placeholder="What must change in the next version?" />
+            {es.dialogs.reasonLabel}
+            {reasonRequired ? '' : es.dialogs.optionalSuffix}
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} autoFocus placeholder={es.dialogs.requestChanges.reasonPlaceholder} />
           </label>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+              {es.dialogs.cancel}
             </Button>
             <Button type="submit" disabled={!canConfirm}>
-              Request changes
+              {es.dialogs.requestChanges.confirm}
             </Button>
           </DialogFooter>
         </form>
@@ -130,8 +134,8 @@ export function ApproveDialog({ open, busy, onOpenChange, login, onConfirm }: Ba
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Approve high-risk plan</DialogTitle>
-          <DialogDescription>This ticket touches payments, auth or PII. Name a second approver (a dev, lead or admin other than you) who has reviewed the plan.</DialogDescription>
+          <DialogTitle>{es.dialogs.approve.title}</DialogTitle>
+          <DialogDescription>{es.dialogs.approve.description}</DialogDescription>
         </DialogHeader>
         <form
           className="flex flex-col gap-3"
@@ -144,20 +148,20 @@ export function ApproveDialog({ open, busy, onOpenChange, login, onConfirm }: Ba
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
-            Second approver login
-            <Input value={second} onChange={(e) => setSecond(e.target.value)} placeholder="github login" autoFocus aria-invalid={sameAsMe} />
-            {sameAsMe ? <span className="text-xs text-destructive">The second approver must be someone else.</span> : null}
+            {es.dialogs.approve.secondApproverLabel}
+            <Input value={second} onChange={(e) => setSecond(e.target.value)} placeholder="usuario de github" autoFocus aria-invalid={sameAsMe} />
+            {sameAsMe ? <span className="text-xs text-destructive">{es.dialogs.approve.secondApproverSameError}</span> : null}
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Note (optional)
+            {es.dialogs.approve.noteLabel}
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
           </label>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+              {es.dialogs.cancel}
             </Button>
             <Button type="submit" disabled={!canConfirm}>
-              Approve plan
+              {es.dialogs.approve.confirm}
             </Button>
           </DialogFooter>
         </form>
@@ -166,18 +170,37 @@ export function ApproveDialog({ open, busy, onOpenChange, login, onConfirm }: Ba
   );
 }
 
-/** Editable override of the AI triage; only changed fields are sent. */
-export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, onConfirm }: BaseDialogProps & { ticket: TicketSnapshot; repos: readonly string[]; onConfirm: (body: ConfirmTriageBody) => void }) {
+/**
+ * Editable override of the AI triage; only changed fields are sent. `initialScores` (the ticket's
+ * effective RICE inputs: the snapshot's own if triage already confirmed once, else the latest
+ * assessment's management lens) drives an optional value/reach/confidence/effort override with a
+ * live-recomputed RICE readout; omitted entirely when the ticket has no assessment yet.
+ */
+export function ConfirmTriageDialog({
+  open,
+  busy,
+  onOpenChange,
+  ticket,
+  repos,
+  initialScores,
+  onConfirm,
+}: BaseDialogProps & { ticket: TicketSnapshot; repos: readonly string[]; initialScores?: RiceInput; onConfirm: (body: ConfirmTriageBody) => void }) {
   const [category, setCategory] = useState<string>(ticket.category ?? '');
   const [risk, setRisk] = useState<string>(ticket.riskTier ?? '');
   const [repo, setRepo] = useState<string>(ticket.targetRepo ?? '');
+  const [value, setValue] = useState<number>(initialScores?.value ?? 3);
+  const [reach, setReach] = useState<number>(initialScores?.reach ?? 3);
+  const [confidence, setConfidence] = useState<Confidence>(initialScores?.confidence ?? 0.8);
+  const [effort, setEffort] = useState<Effort>(initialScores?.effort ?? 'M');
   const repoOptions = Array.from(new Set([...(ticket.targetRepo ? [ticket.targetRepo] : []), ...repos]));
+  const currentScores: RiceInput = { value, reach, confidence, effort };
+  const currentRice = riceScore(currentScores);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Confirm triage</DialogTitle>
-          <DialogDescription>Keep the AI suggestion or override any field. Planning starts once an owner claims the ticket.</DialogDescription>
+          <DialogTitle>{es.dialogs.confirmTriage.title}</DialogTitle>
+          <DialogDescription>{es.dialogs.confirmTriage.description}</DialogDescription>
         </DialogHeader>
         <form
           className="flex flex-col gap-3"
@@ -190,45 +213,54 @@ export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, o
             if (cat.success && cat.data !== ticket.category) body.category = cat.data;
             if (tier.success && tier.data !== ticket.riskTier) body.riskTier = tier.data;
             if (repo && repo !== ticket.targetRepo) body.targetRepo = repo;
+            if (
+              initialScores &&
+              (currentScores.value !== initialScores.value ||
+                currentScores.reach !== initialScores.reach ||
+                currentScores.confidence !== initialScores.confidence ||
+                currentScores.effort !== initialScores.effort)
+            ) {
+              body.scores = currentScores;
+            }
             onConfirm(body);
           }}
         >
           <label className="flex flex-col gap-1 text-sm">
-            Category
+            {es.dialogs.confirmTriage.categoryLabel}
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger aria-label="Category">
-                <SelectValue placeholder="Category" />
+              <SelectTrigger aria-label={es.dialogs.confirmTriage.categoryLabel}>
+                <SelectValue placeholder={es.dialogs.confirmTriage.categoryLabel} />
               </SelectTrigger>
               <SelectContent>
                 {TicketCategory.options.map((c) => (
-                  <SelectItem key={c} value={c} className="capitalize">
-                    {c}
+                  <SelectItem key={c} value={c}>
+                    {ticketCategoryLabels[c]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Risk tier
+            {es.dialogs.confirmTriage.riskLabel}
             <Select value={risk} onValueChange={setRisk}>
-              <SelectTrigger aria-label="Risk tier">
-                <SelectValue placeholder="Risk tier" />
+              <SelectTrigger aria-label={es.dialogs.confirmTriage.riskLabel}>
+                <SelectValue placeholder={es.dialogs.confirmTriage.riskLabel} />
               </SelectTrigger>
               <SelectContent>
                 {RiskTier.options.map((r) => (
-                  <SelectItem key={r} value={r} className="capitalize">
-                    {r}
+                  <SelectItem key={r} value={r}>
+                    {riskTierLabels[r]}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Target repository
+            {es.dialogs.confirmTriage.repositoryLabel}
             {repoOptions.length > 1 ? (
               <Select value={repo} onValueChange={setRepo}>
-                <SelectTrigger aria-label="Target repository">
-                  <SelectValue placeholder="Repository" />
+                <SelectTrigger aria-label={es.dialogs.confirmTriage.repositoryLabel}>
+                  <SelectValue placeholder={es.dialogs.confirmTriage.repositoryLabel} />
                 </SelectTrigger>
                 <SelectContent>
                   {repoOptions.map((r) => (
@@ -239,15 +271,83 @@ export function ConfirmTriageDialog({ open, busy, onOpenChange, ticket, repos, o
                 </SelectContent>
               </Select>
             ) : (
-              <Input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="repository name from repos.yaml" aria-label="Target repository" />
+              <Input value={repo} onChange={(e) => setRepo(e.target.value)} placeholder={es.dialogs.confirmTriage.repositoryPlaceholder} aria-label={es.dialogs.confirmTriage.repositoryLabel} />
             )}
           </label>
+          {initialScores ? (
+            <div className="flex flex-col gap-2 rounded-lg border p-3">
+              <span className="text-sm font-medium">{es.dialogs.confirmTriage.scoresHeading}</span>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-1 text-sm">
+                  {es.dialogs.confirmTriage.valueLabel}
+                  <Select value={String(value)} onValueChange={(v) => setValue(Number(v))}>
+                    <SelectTrigger aria-label={es.dialogs.confirmTriage.valueLabel}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  {es.dialogs.confirmTriage.reachLabel}
+                  <Select value={String(reach)} onValueChange={(v) => setReach(Number(v))}>
+                    <SelectTrigger aria-label={es.dialogs.confirmTriage.reachLabel}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  {es.dialogs.confirmTriage.confidenceLabel}
+                  <Select value={String(confidence)} onValueChange={(v) => setConfidence(Number(v) as Confidence)}>
+                    <SelectTrigger aria-label={es.dialogs.confirmTriage.confidenceLabel}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONFIDENCE_OPTIONS.map((c) => (
+                        <SelectItem key={c} value={String(c)}>
+                          {confidenceLabel(c)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  {es.dialogs.confirmTriage.effortLabel}
+                  <Select value={effort} onValueChange={(v) => setEffort(v as Effort)}>
+                    <SelectTrigger aria-label={es.dialogs.confirmTriage.effortLabel}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Effort.options.map((e) => (
+                        <SelectItem key={e} value={e}>
+                          {effortLabels[e]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+              </div>
+              <p className="text-sm text-muted-foreground">{es.dialogs.confirmTriage.riceLive(currentRice)}</p>
+            </div>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
+              {es.dialogs.cancel}
             </Button>
             <Button type="submit" disabled={busy}>
-              Confirm triage
+              {es.dialogs.confirmTriage.confirm}
             </Button>
           </DialogFooter>
         </form>

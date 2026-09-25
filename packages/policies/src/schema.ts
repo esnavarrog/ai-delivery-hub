@@ -69,10 +69,17 @@ export type TriggerRule = z.infer<typeof TriggerRule>;
 export const OpenProjectPolicy = z.object({
   projectIds: z.array(z.number().int().positive()).min(1),
   trigger: TriggerRule,
-  /** Ticket state -> OpenProject status name. States absent here are not mirrored. */
-  statusSync: z.partialRecord(TicketState, z.string().min(1)),
 });
 export type OpenProjectPolicy = z.infer<typeof OpenProjectPolicy>;
+
+/** Language for AI-generated free text (summaries, rationale, plan prose). JSON keys/enum values/paths/commands/code stay in English regardless. */
+export const OutputLanguage = z.enum(['es', 'en']);
+export type OutputLanguage = z.infer<typeof OutputLanguage>;
+
+export const OutputPolicy = z.object({
+  language: OutputLanguage.default('es'),
+});
+export type OutputPolicy = z.infer<typeof OutputPolicy>;
 
 export const ReposFile = z.object({
   repos: z.record(z.string().min(1), RepoPolicy).refine((r) => Object.keys(r).length > 0, 'at least one repo is required'),
@@ -81,6 +88,7 @@ export const ReposFile = z.object({
   openproject: OpenProjectPolicy,
   /** GitHub login -> role. */
   roles: z.record(z.string().min(1), Role),
+  output: OutputPolicy.prefault({}),
 });
 export type ReposFile = z.infer<typeof ReposFile>;
 

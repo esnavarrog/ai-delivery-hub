@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TriageResult, triageResultSchemaFor } from '../../src/triage/triage-result.js';
-import { validTriageResult } from '../fixtures.js';
+import { validAssessment, validTriageResult } from '../fixtures.js';
 
 describe('TriageResult', () => {
   it('parses a valid fixture', () => {
@@ -21,7 +21,7 @@ describe('TriageResult', () => {
   it('rejects similarity outside 0..1', () => {
     const r = TriageResult.safeParse({
       ...validTriageResult(),
-      duplicateCandidates: [{ ticketId: 't-2', opWorkPackageId: 42, similarity: 1.2, reason: 'same' }],
+      duplicateCandidates: [{ ticketId: 't-2', displayKey: 'OP-42', similarity: 1.2, reason: 'same' }],
     });
     expect(r.success).toBe(false);
   });
@@ -44,6 +44,55 @@ describe('TriageResult', () => {
       alreadyImplementedHint: { evidencePaths: 'src/a.ts', explanation: 'exists' },
     });
     expect(badHint.success).toBe(false);
+  });
+});
+
+describe('TriageResult.assessment (optional, backward compatible)', () => {
+  it('parses without an assessment (old triage results keep working)', () => {
+    expect(TriageResult.safeParse(validTriageResult()).success).toBe(true);
+  });
+
+  it('parses a full three-lens assessment', () => {
+    const r = TriageResult.safeParse({ ...validTriageResult(), assessment: validAssessment() });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects an out-of-range functional clarity', () => {
+    const bad = validAssessment({ functional: { clarity: 6, acceptanceCriteria: [], questions: [] } });
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('rejects an unknown technical feasibility', () => {
+    const bad = validAssessment();
+    // @ts-expect-error testing invalid input
+    bad.technical.feasibility = 'maybe';
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('rejects a management confidence outside 0.5/0.8/1', () => {
+    const bad = validAssessment();
+    // @ts-expect-error testing invalid input
+    bad.management.confidence = 0.9;
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('rejects an unknown management recommendation', () => {
+    const bad = validAssessment();
+    // @ts-expect-error testing invalid input
+    bad.management.recommendation = 'maybe_later';
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('rejects value/reach outside 1..5', () => {
+    const bad = validAssessment({ management: { ...validAssessment().management, value: 0 } });
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: bad }).success).toBe(false);
+  });
+
+  it('accepts up to 5 functional questions and rejects a 6th', () => {
+    const upToFive = validAssessment({ functional: { clarity: 2, acceptanceCriteria: [], questions: ['q1', 'q2', 'q3', 'q4', 'q5'] } });
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: upToFive }).success).toBe(true);
+    const six = validAssessment({ functional: { clarity: 2, acceptanceCriteria: [], questions: ['q1', 'q2', 'q3', 'q4', 'q5', 'q6'] } });
+    expect(TriageResult.safeParse({ ...validTriageResult(), assessment: six }).success).toBe(false);
   });
 });
 

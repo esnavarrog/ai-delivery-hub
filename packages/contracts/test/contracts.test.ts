@@ -20,9 +20,8 @@ const ISO = '2026-09-14T12:00:00.000Z';
 
 const ticket = {
   id: 't-1',
-  opWorkPackageId: 4711,
-  opProjectId: 15,
-  opLockVersion: 3,
+  source: { kind: 'openproject', workPackageId: 4711, projectId: 15, lockVersion: 3 },
+  displayKey: 'OP-4711',
   subject: 'Login fails',
   state: 'plan_review',
   flags: [],

@@ -1,0 +1,1 @@
+DROP TABLE "op_sync_outbox" CASCADE;

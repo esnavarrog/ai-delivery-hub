@@ -1,10 +1,14 @@
 import type { TicketSnapshot } from '@ai-delivery-hub/domain';
 import { GitBranch } from 'lucide-react';
+import { es } from '@/i18n/es';
+import { ticketPriorityLabels } from '@/i18n/labels';
 import { cn } from '@/lib/utils';
 import { ActorAvatar } from '@/ui/actor-avatar';
+import { Badge } from '@/ui/badge';
 import { FlagChips } from '@/ui/flag-chips';
 import { RelativeTime } from '@/ui/relative-time';
 import { RiskBadge } from '@/ui/risk-badge';
+import { SourceBadge } from '@/ui/source-badge';
 import { StateChip } from '@/ui/state-chip';
 
 export function TicketCard({ ticket, selected, onOpen }: { ticket: TicketSnapshot; selected: boolean; onOpen: (ticket: TicketSnapshot) => void }) {
@@ -21,11 +25,12 @@ export function TicketCard({ ticket, selected, onOpen }: { ticket: TicketSnapsho
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-mono">#{ticket.opWorkPackageId}</span>
-            {ticket.priority !== 'normal' ? <span className="capitalize">{ticket.priority}</span> : null}
+            <SourceBadge source={ticket.source} />
+            <span className="font-mono">{ticket.displayKey}</span>
+            {ticket.priority !== 'normal' ? <span>{ticketPriorityLabels[ticket.priority]}</span> : null}
           </div>
           <h3 className="truncate font-medium">
-            <button type="button" className="text-left focus-visible:outline-none" onClick={(e) => { e.stopPropagation(); onOpen(ticket); }} aria-label={`Open ticket #${ticket.opWorkPackageId} ${ticket.subject}`}>
+            <button type="button" className="text-left focus-visible:outline-none" onClick={(e) => { e.stopPropagation(); onOpen(ticket); }} aria-label={es.board.openTicketAria(ticket.displayKey, ticket.subject)}>
               {ticket.subject}
             </button>
           </h3>
@@ -35,6 +40,11 @@ export function TicketCard({ ticket, selected, onOpen }: { ticket: TicketSnapsho
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <StateChip state={ticket.state} />
         <RiskBadge tier={ticket.riskTier} />
+        {ticket.riceScore !== undefined ? (
+          <Badge variant="outline" aria-label={es.rice.badgeAria(ticket.riceScore)}>
+            {es.rice.badge(ticket.riceScore)}
+          </Badge>
+        ) : null}
         {ticket.targetRepo ? (
           <span className="inline-flex items-center gap-1">
             <GitBranch className="size-3" aria-hidden="true" />

@@ -2,13 +2,16 @@ import type { TicketSnapshot } from '@ai-delivery-hub/domain';
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { useTicketList } from '@/app/queries';
+import { es } from '@/i18n/es';
 import { sortTickets } from '@/lib/inbox';
+import { useRedirectRequesterAway } from '@/lib/route-guards';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { EmptyState } from '@/ui/empty-state';
 import { PageHeader } from '@/ui/page-header';
 import { RiskBadge } from '@/ui/risk-badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/select';
+import { SourceBadge } from '@/ui/source-badge';
 import { Skeleton } from '@/ui/skeleton';
 import { applyFilters, buildColumns, type BoardFilters } from './board-columns';
 
@@ -33,6 +36,7 @@ function FilterSelect({ label, allLabel, value, options, onChange }: { label: st
 }
 
 export function BoardContainer() {
+  const hideForRequester = useRedirectRequesterAway('/solicitudes');
   const navigate = useNavigate();
   const list = useTicketList();
   const [filters, setFilters] = useState<BoardFilters>({});
@@ -48,16 +52,18 @@ export function BoardContainer() {
   const columns = useMemo(() => buildColumns(applyFilters(tickets, filters)), [tickets, filters]);
   const open = (t: TicketSnapshot) => void navigate({ to: '/tickets/$id', params: { id: t.id } });
 
+  if (hideForRequester) return null;
+
   return (
     <div>
       <PageHeader
-        title="Board"
-        description="Every ticket by state. Read only; open a ticket to act."
+        title={es.board.title}
+        description={es.board.description}
         actions={
           <>
-            <FilterSelect label="Repository" allLabel="All repositories" value={filters.repo} options={options.repo} onChange={(repo) => setFilters((f) => ({ ...f, repo }))} />
-            <FilterSelect label="Owner" allLabel="All owners" value={filters.owner} options={options.owner} onChange={(owner) => setFilters((f) => ({ ...f, owner }))} />
-            <FilterSelect label="Risk" allLabel="All risks" value={filters.risk} options={options.risk} onChange={(risk) => setFilters((f) => ({ ...f, risk }))} />
+            <FilterSelect label={es.board.repositoryLabel} allLabel={es.board.allRepositories} value={filters.repo} options={options.repo} onChange={(repo) => setFilters((f) => ({ ...f, repo }))} />
+            <FilterSelect label={es.board.ownerLabel} allLabel={es.board.allOwners} value={filters.owner} options={options.owner} onChange={(owner) => setFilters((f) => ({ ...f, owner }))} />
+            <FilterSelect label={es.board.riskLabel} allLabel={es.board.allRisks} value={filters.risk} options={options.risk} onChange={(risk) => setFilters((f) => ({ ...f, risk }))} />
           </>
         }
       />
@@ -68,11 +74,11 @@ export function BoardContainer() {
           ))}
         </div>
       ) : list.isError ? (
-        <EmptyState title="Board not available">
-          {list.error instanceof Error ? list.error.message : 'Could not load tickets.'}
+        <EmptyState title={es.board.notAvailableTitle}>
+          {list.error instanceof Error ? list.error.message : es.board.couldNotLoad}
           <div className="mt-3">
             <Button variant="outline" onClick={() => void list.refetch()}>
-              Retry
+              {es.board.retry}
             </Button>
           </div>
         </EmptyState>
@@ -80,7 +86,7 @@ export function BoardContainer() {
         <div className="-mx-4 overflow-x-auto px-4 pb-4">
           <div className="grid grid-flow-col auto-cols-[minmax(15rem,17rem)] gap-3">
             {columns.map((col) => (
-              <section key={col.id} className={cn('flex min-h-40 flex-col gap-2 rounded-xl bg-muted/50 p-2', col.id === 'closed' && 'opacity-80')} aria-label={`${col.title} column`}>
+              <section key={col.id} className={cn('flex min-h-40 flex-col gap-2 rounded-xl bg-muted/50 p-2', col.id === 'closed' && 'opacity-80')} aria-label={es.board.columnAria(col.title)}>
                 <h2 className="flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <span>{col.title}</span>
                   <span>{col.tickets.length}</span>
@@ -91,9 +97,12 @@ export function BoardContainer() {
                     type="button"
                     onClick={() => open(t)}
                     className="flex flex-col gap-1 rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:border-primary/40"
-                    aria-label={`Open ticket #${t.opWorkPackageId} ${t.subject}`}
+                    aria-label={es.board.openTicketAria(t.displayKey, t.subject)}
                   >
-                    <span className="font-mono text-xs text-muted-foreground">#{t.opWorkPackageId}</span>
+                    <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                      <SourceBadge source={t.source} />
+                      {t.displayKey}
+                    </span>
                     <span className="line-clamp-2 font-medium">{t.subject}</span>
                     <span className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                       <RiskBadge tier={t.riskTier} />

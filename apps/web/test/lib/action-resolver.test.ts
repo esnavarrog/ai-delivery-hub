@@ -62,7 +62,7 @@ describe('resolveActions', () => {
     const r = resolve(state, 'dev', {}, { latestRun: run({ kind: state === 'triaging' ? 'triage' : 'planning' }) });
     expect(r.primary?.id).toBe('stop');
     expect(r.info.kind).toBe('ai_working');
-    expect(r.info.message).toMatch(/AI is working/);
+    expect(r.info.message).toMatch(/La IA está trabajando/);
     expect(r.info.message).toMatch(/2m/);
     expect(r.tertiary.map((a) => a.id)).not.toContain('pause');
 
@@ -104,7 +104,7 @@ describe('resolveActions', () => {
 
     const blocked = resolve('plan_review', 'dev', { ownerUserId: ME, unresolvedCommentCount: 2 });
     expect(blocked.primary?.id).toBe('approve');
-    expect(blocked.primary?.disabledReason).toMatch(/2 unresolved comments/);
+    expect(blocked.primary?.disabledReason).toMatch(/2 comentarios sin resolver/);
   });
 
   it('plan_review: high risk requires a second approver; non-owner dev only watches', () => {
@@ -126,13 +126,13 @@ describe('resolveActions', () => {
     expect(r.secondary?.id).toBe('reject');
 
     const capped = resolve('plan_changes_requested', 'admin', { planVersionCount: 3, lastPlanVersionAt: '2026-09-14T11:00:00.000Z', lastHumanCommentAt: '2026-09-14T10:00:00.000Z' });
-    expect(capped.primary?.disabledReason).toMatch(/3 plan versions/);
+    expect(capped.primary?.disabledReason).toMatch(/3 versiones del plan/);
     const fed = resolve('plan_changes_requested', 'admin', { planVersionCount: 3, lastPlanVersionAt: '2026-09-14T11:00:00.000Z', lastHumanCommentAt: '2026-09-14T11:30:00.000Z' });
     expect(fed.primary?.disabledReason).toBeUndefined();
 
     const failed = resolve('plan_changes_requested', 'dev', { ownerUserId: ME }, { latestRun: run({ status: 'budget_exhausted', failureReason: 'budget_exhausted', errorMessage: null }) });
     expect(failed.info.kind).toBe('failed');
-    expect(failed.info.message).toMatch(/budget/i);
+    expect(failed.info.message).toMatch(/presupuesto/i);
   });
 
   it('plan_approved: what happens next card with Reopen as the only action', () => {
@@ -175,6 +175,7 @@ describe('resolveActions', () => {
       ticket_rejected: 'reject',
       ticket_marked_duplicate: 'duplicate',
       ticket_marked_already_implemented: 'already_implemented',
+      requester_answers_submitted: 'answer_questions',
     };
     for (const edge of humanEdges) {
       const action = eventToAction[edge.event];
@@ -182,6 +183,27 @@ describe('resolveActions', () => {
       const offered = ids(resolve(edge.from, 'admin', { ownerUserId: undefined }));
       expect(offered, `${edge.from} -> ${edge.event}`).toContain(action);
     }
+  });
+
+  it('awaiting_requester: lead/admin get answer_questions; a plain dev without ownership only watches', () => {
+    for (const role of ['lead', 'admin'] as const) {
+      const r = resolve('awaiting_requester', role, { pendingQuestionCount: 2 });
+      expect(r.primary?.id).toBe('answer_questions');
+      expect(r.info.kind).toBe('needs_answer');
+    }
+    const dev = resolve('awaiting_requester', 'dev', { ownerUserId: undefined });
+    expect(dev.primary).toBeUndefined();
+    expect(dev.info.kind).toBe('waiting');
+  });
+
+  it('awaiting_requester: the owning requester gets answer_questions; another requester only watches', () => {
+    const owner = resolve('awaiting_requester', 'requester', { requesterUserId: ME, pendingQuestionCount: 1 });
+    expect(owner.primary?.id).toBe('answer_questions');
+    expect(owner.info.kind).toBe('needs_answer');
+
+    const other = resolve('awaiting_requester', 'requester', { requesterUserId: OTHER });
+    expect(other.primary).toBeUndefined();
+    expect(other.info.kind).toBe('read_only');
   });
 
   it('every action carries an accessible label', () => {

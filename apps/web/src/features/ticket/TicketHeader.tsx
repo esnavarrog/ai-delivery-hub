@@ -2,30 +2,34 @@ import type { TicketSnapshot } from '@ai-delivery-hub/domain';
 import { ExternalLink, GitBranch, User } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { workPackageUrl } from '@/app/config';
+import { es } from '@/i18n/es';
+import { ticketCategoryLabels, ticketPriorityLabels } from '@/i18n/labels';
 import { FlagChips } from '@/ui/flag-chips';
 import { RelativeTime } from '@/ui/relative-time';
 import { RiskBadge } from '@/ui/risk-badge';
+import { SourceBadge } from '@/ui/source-badge';
 import { StateChip } from '@/ui/state-chip';
 
 export function TicketHeader({ ticket, actions }: { ticket: TicketSnapshot; actions?: ReactNode }) {
-  const opUrl = workPackageUrl(ticket.opWorkPackageId);
+  const opUrl = ticket.source.kind === 'openproject' ? workPackageUrl(ticket.source.workPackageId) : undefined;
   return (
     <header className="flex flex-col gap-3 pb-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <SourceBadge source={ticket.source} />
             {opUrl ? (
-              <a href={opUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono hover:text-foreground hover:underline" aria-label={`Open work package ${ticket.opWorkPackageId} in OpenProject`}>
-                #{ticket.opWorkPackageId}
+              <a href={opUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono hover:text-foreground hover:underline" aria-label={es.ticketHeader.openWorkPackageAria(ticket.displayKey)}>
+                {ticket.displayKey}
                 <ExternalLink className="size-3.5" aria-hidden="true" />
               </a>
             ) : (
-              <span className="font-mono">#{ticket.opWorkPackageId}</span>
+              <span className="font-mono">{ticket.displayKey}</span>
             )}
             <span aria-hidden="true">·</span>
-            <span className="capitalize">{ticket.priority} priority</span>
+            <span>{es.ticketHeader.priority(ticketPriorityLabels[ticket.priority])}</span>
             <span aria-hidden="true">·</span>
-            <RelativeTime iso={ticket.updatedAt} prefix="in state" />
+            <RelativeTime iso={ticket.updatedAt} prefix={es.ticketHeader.inState} />
           </div>
           <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{ticket.subject}</h1>
         </div>
@@ -42,9 +46,9 @@ export function TicketHeader({ ticket, actions }: { ticket: TicketSnapshot; acti
         ) : null}
         <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
           <User className="size-3.5" aria-hidden="true" />
-          {ticket.ownerUserId ?? 'no owner yet'}
+          {ticket.ownerUserId ?? es.ticketHeader.noOwnerYet}
         </span>
-        {ticket.category ? <span className="text-sm capitalize text-muted-foreground">{ticket.category}</span> : null}
+        {ticket.category ? <span className="text-sm text-muted-foreground">{ticketCategoryLabels[ticket.category]}</span> : null}
         <FlagChips flags={ticket.flags} />
       </div>
     </header>

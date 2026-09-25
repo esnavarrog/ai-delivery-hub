@@ -13,6 +13,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BoardRouteImport } from './routes/board'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as RunsRouteImport } from './routes/runs'
+import { Route as SolicitudesIndexRouteImport } from './routes/solicitudes.index'
+import { Route as SolicitudesNuevaRouteImport } from './routes/solicitudes.nueva'
 import { Route as TicketsIdIndexRouteImport } from './routes/tickets.$id.index'
 import { Route as TicketsIdPlanRouteImport } from './routes/tickets.$id.plan'
 
@@ -36,6 +38,16 @@ const RunsRoute = RunsRouteImport.update({
   path: '/runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SolicitudesIndexRoute = SolicitudesIndexRouteImport.update({
+  id: '/solicitudes/',
+  path: '/solicitudes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SolicitudesNuevaRoute = SolicitudesNuevaRouteImport.update({
+  id: '/solicitudes/nueva',
+  path: '/solicitudes/nueva',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TicketsIdIndexRoute = TicketsIdIndexRouteImport.update({
   id: '/tickets/$id/',
   path: '/tickets/$id/',
@@ -52,6 +64,8 @@ export interface FileRoutesByFullPath {
   '/board': typeof BoardRoute
   '/inbox': typeof InboxRoute
   '/runs': typeof RunsRoute
+  '/solicitudes/nueva': typeof SolicitudesNuevaRoute
+  '/solicitudes/': typeof SolicitudesIndexRoute
   '/tickets/$id/plan': typeof TicketsIdPlanRoute
   '/tickets/$id/': typeof TicketsIdIndexRoute
 }
@@ -60,6 +74,8 @@ export interface FileRoutesByTo {
   '/board': typeof BoardRoute
   '/inbox': typeof InboxRoute
   '/runs': typeof RunsRoute
+  '/solicitudes/nueva': typeof SolicitudesNuevaRoute
+  '/solicitudes': typeof SolicitudesIndexRoute
   '/tickets/$id/plan': typeof TicketsIdPlanRoute
   '/tickets/$id': typeof TicketsIdIndexRoute
 }
@@ -69,21 +85,40 @@ export interface FileRoutesById {
   '/board': typeof BoardRoute
   '/inbox': typeof InboxRoute
   '/runs': typeof RunsRoute
+  '/solicitudes/nueva': typeof SolicitudesNuevaRoute
+  '/solicitudes/': typeof SolicitudesIndexRoute
   '/tickets/$id/plan': typeof TicketsIdPlanRoute
   '/tickets/$id/': typeof TicketsIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/board' | '/inbox' | '/runs' | '/tickets/$id/plan' | '/tickets/$id/'
+    | '/'
+    | '/board'
+    | '/inbox'
+    | '/runs'
+    | '/solicitudes/nueva'
+    | '/solicitudes/'
+    | '/tickets/$id/plan'
+    | '/tickets/$id/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/board' | '/inbox' | '/runs' | '/tickets/$id/plan' | '/tickets/$id'
+  to:
+    | '/'
+    | '/board'
+    | '/inbox'
+    | '/runs'
+    | '/solicitudes/nueva'
+    | '/solicitudes'
+    | '/tickets/$id/plan'
+    | '/tickets/$id'
   id:
     | '__root__'
     | '/'
     | '/board'
     | '/inbox'
     | '/runs'
+    | '/solicitudes/nueva'
+    | '/solicitudes/'
     | '/tickets/$id/plan'
     | '/tickets/$id/'
   fileRoutesById: FileRoutesById
@@ -93,6 +128,8 @@ export interface RootRouteChildren {
   BoardRoute: typeof BoardRoute
   InboxRoute: typeof InboxRoute
   RunsRoute: typeof RunsRoute
+  SolicitudesNuevaRoute: typeof SolicitudesNuevaRoute
+  SolicitudesIndexRoute: typeof SolicitudesIndexRoute
   TicketsIdPlanRoute: typeof TicketsIdPlanRoute
   TicketsIdIndexRoute: typeof TicketsIdIndexRoute
 }
@@ -127,6 +164,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/solicitudes/': {
+      id: '/solicitudes/'
+      path: '/solicitudes'
+      fullPath: '/solicitudes/'
+      preLoaderRoute: typeof SolicitudesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/solicitudes/nueva': {
+      id: '/solicitudes/nueva'
+      path: '/solicitudes/nueva'
+      fullPath: '/solicitudes/nueva'
+      preLoaderRoute: typeof SolicitudesNuevaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tickets/$id/': {
       id: '/tickets/$id/'
       path: '/tickets/$id'
@@ -149,6 +200,8 @@ const rootRouteChildren: RootRouteChildren = {
   BoardRoute: BoardRoute,
   InboxRoute: InboxRoute,
   RunsRoute: RunsRoute,
+  SolicitudesNuevaRoute: SolicitudesNuevaRoute,
+  SolicitudesIndexRoute: SolicitudesIndexRoute,
   TicketsIdPlanRoute: TicketsIdPlanRoute,
   TicketsIdIndexRoute: TicketsIdIndexRoute,
 }

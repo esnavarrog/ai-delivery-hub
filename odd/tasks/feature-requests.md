@@ -78,5 +78,23 @@ Forecast ~1500–2000 authored changed lines (> 400) → strategy `ask-on-risk`;
 ## Progress / Evidence
 - 2026-09-24: worktree + branch created, `pnpm install` ok, codegraph initialized.
 
+## Final fixes (2026-09-24)
+- 8ab840f fix(server): `mayStartTriageFromTriaging(events, now, 2×maxDurationMs)` — a leg's latest triage `run_started` older than the window with no terminal event is abandoned → runs again (fixes first-leg + re-triage strand; no sweeper: the next enqueue recovers it). Parent caught that the writer's version checked the leg's *first* run (an old abandoned run would unlock a newer in-flight one) → fixed to latest; `may-start-triage.test.ts` RED→GREEN. `assertTicketVisible` on flags/comments/comment-resolve (non-owner requester → 404); other mutation routes already blocked for requester by role.
+- f44669b fix(web): "1 pregunta"/"N preguntas", "Ninguna" for questions/dependencies, `useRuns` disabled for requester (no 403 request).
+- Checks (parent): server 246 pass / 1 env fail (config); web 104/104; typecheck 5/5; build ok. Browser: plurals/"Ninguna" ✓, requester `/runs` → `/solicitudes` with only `/api/me` + `/api/tickets` requests ✓.
+- Verification tier (RDD off): assess d95a36b..f44669b = medium, 248 lines → writer self-verification + parent spot check (sonnet writer, no small-model bump).
+
+## Acceptance criteria status
+- [x] Requester submits from `/solicitudes/nueva` and sees it in `/solicitudes` (browser QA).
+- [x] Triage produces three-lens assessment + RICE; open questions → `awaiting_requester` (real AI).
+- [x] Answers trigger re-triage; after 2 rounds no more questions (M-0002 → `triage_completed`).
+- [x] Lead/admin sees assessment and can override scores on confirm (unit/container tests; confirm dialog not exercised in browser — M-0002 was past the confirmable state); requesters can't open `/inbox` nor list others' tickets (server-enforced, browser + curl).
+
+## Open / follow-ups (not blocking)
+- No sweeper re-enqueues stranded or failed triage tickets (pre-existing).
+- `apps/server/test/unit/config.test.ts` fails in any worktree outside `ai-delivery-hub/.worktrees` (pre-existing, environmental).
+- Unknown logins get 401 though `repos.yaml` comment says they default to requester — revisit with the real users/roles work.
+- Main checkout `.gitignore` `.atl/` change left uncommitted for the user.
+
 ## Next step
-Land final fixes, re-verify, then final PR `feat/feature-requests` → base (user decision).
+Push + PR `feat/feature-requests` → `feat/spanish-ui` (or main once spanish-ui lands) — user decision.

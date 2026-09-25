@@ -360,13 +360,25 @@ describe('HTTP app', () => {
       expect((await json(await app.request('/api/tickets/i/already-implemented', post('Macstban')))).ticket.state).toBe('already_implemented');
     });
 
-    it('flags: set/clear via {flag, set}; 400 on a bad flag; requester limited to needs_info (403)', async () => {
+    it('flags: set/clear via {flag, set}; 400 on a bad flag; requester limited to their own ticket and needs_info', async () => {
       const { app } = await harness();
       expect((await json(await app.request('/api/tickets/r/flags', post('ana', { flag: 'paused', set: true })))).ticket.flags).toEqual(['paused']);
       expect((await json(await app.request('/api/tickets/r/flags', post('ana', { flag: 'paused', set: false })))).ticket.flags).toEqual([]);
       expect((await app.request('/api/tickets/r/flags', post('ana', { flag: 'urgent', set: true }))).status).toBe(400);
-      expect((await app.request('/api/tickets/r/flags', post('req', { flag: 'paused', set: true }))).status).toBe(403);
-      expect((await json(await app.request('/api/tickets/r/flags', post('req', { flag: 'needs_info', set: true })))).ticket.flags).toEqual(['needs_info']);
+      // a requester cannot even reach a ticket that isn't theirs, regardless of flag (404, server-enforced)
+      expect((await app.request('/api/tickets/r/flags', post('req', { flag: 'needs_info', set: true }))).status).toBe(404);
+      // on their own ticket, a requester is limited to needs_info
+      expect((await app.request('/api/tickets/m/flags', post('req', { flag: 'paused', set: true }))).status).toBe(403);
+      expect((await json(await app.request('/api/tickets/m/flags', post('req', { flag: 'needs_info', set: true })))).ticket.flags).toEqual(['needs_info']);
+    });
+
+    it("comments: 404 for a requester on a ticket that isn't theirs (add and resolve); their own ticket passes the visibility check", async () => {
+      const { app } = await harness();
+      expect((await app.request('/api/tickets/r/comments', post('req', { sectionPath: 'goal', body: 'hi' }))).status).toBe(404);
+      expect((await app.request('/api/tickets/r/comments/whatever/resolve', post('req'))).status).toBe(404);
+      // ticket 'm' is req's own ticket: visibility passes, then further validation/role rules apply
+      expect((await app.request('/api/tickets/m/comments', post('req', { sectionPath: 'goal', body: 'hi' }))).status).toBe(409); // no plan version yet
+      expect((await app.request('/api/tickets/m/comments/whatever/resolve', post('req'))).status).toBe(403); // requester role may not resolve
     });
 
     it('retriage re-enqueues a received ticket after a failed run; 409 otherwise', async () => {

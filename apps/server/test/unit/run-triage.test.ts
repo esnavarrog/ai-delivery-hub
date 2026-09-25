@@ -38,6 +38,7 @@ describe('RunTriage', () => {
   let planningQueue: string[];
   let recent: TicketSnapshot[];
   let useCase: RunTriage;
+  let clock: FixedClock;
 
   beforeEach(async () => {
     store = new MemoryEventStore();
@@ -45,10 +46,11 @@ describe('RunTriage', () => {
     runner = new FakeAgentRunner();
     planningQueue = [];
     recent = [];
+    clock = new FixedClock();
     useCase = new RunTriage({
       eventStore: store,
       ids: new SequentialIds(),
-      clock: new FixedClock(),
+      clock,
       runner,
       runs,
       tickets: { list: async () => recent },
@@ -246,11 +248,58 @@ describe('RunTriage', () => {
       ]);
       expect((await snapshot()).state).toBe('triaging');
 
+      clock.set('2026-09-14T11:07:00.000Z'); // 1 minute after the in-flight run_started: well within the budget window
       const outcome = await useCase.execute('t-1');
       expect(outcome).toMatchObject({ kind: 'skipped' });
       expect(runner.triageInputs).toHaveLength(0);
       expect(await runs.list({ ticketId: 't-1' })).toHaveLength(0);
       expect(store.types('t-1')).toHaveLength(6); // nothing new appended: no second run
+    });
+
+    it('runs a stranded re-triage: the in-flight run_started is older than the triage budget window (crash, no terminal event)', async () => {
+      seq = 1;
+      await store.append('t-1', 1, [
+        ev('t-1', 'triage_started', sysActor),
+        ev('t-1', 'run_started', sysActor, { kind: 'triage' }),
+        ev('t-1', 'requester_questions_asked', aiActor, { round: 1, questions: [{ id: 'q1-1', text: 'Which team is affected?' }] }),
+        ev('t-1', 'requester_answers_submitted', requesterActor, { round: 1, answers: [{ questionId: 'q1-1', text: 'Finance' }] }),
+        ev('t-1', 'run_started', sysActor, { kind: 'triage' }), // this run then crashed: no run_succeeded/run_failed ever appended
+      ]);
+      expect((await snapshot()).state).toBe('triaging');
+
+      // budget.maxDurationMs = 180_000 (3 min); the window is 2x that = 6 min. The stranded
+      // run_started is at 11:06:00; put now well past the 6-minute margin.
+      clock.set('2026-09-14T11:20:00.000Z');
+      runner.scriptTriage({ ok: true, value: triageResult(), usage: okUsage });
+      const outcome = await useCase.execute('t-1');
+      expect(outcome).toMatchObject({ kind: 'completed', next: 'awaiting_owner' });
+      expect(store.types('t-1').slice(-4)).toEqual(['run_started', 'triage_completed', 'run_succeeded', 'owner_required']);
+      expect(runner.triageInputs).toHaveLength(1);
+      expect(await runs.list({ ticketId: 't-1' })).toHaveLength(1);
+    });
+
+    it('skips a young in-flight run on the first triage leg (no requester_answers_submitted yet)', async () => {
+      seq = 1;
+      await store.append('t-1', 1, [ev('t-1', 'triage_started', sysActor), ev('t-1', 'run_started', sysActor, { kind: 'triage' })]);
+      expect((await snapshot()).state).toBe('triaging');
+
+      clock.set('2026-09-14T11:03:30.000Z'); // 30s after the run_started at 11:03:00
+      const outcome = await useCase.execute('t-1');
+      expect(outcome).toMatchObject({ kind: 'skipped' });
+      expect(runner.triageInputs).toHaveLength(0);
+    });
+
+    it('runs a stranded first-leg triage: the process died right after triage_started/run_started, no terminal event ever followed', async () => {
+      seq = 1;
+      await store.append('t-1', 1, [ev('t-1', 'triage_started', sysActor), ev('t-1', 'run_started', sysActor, { kind: 'triage' })]);
+      expect((await snapshot()).state).toBe('triaging');
+
+      clock.set('2026-09-14T11:20:00.000Z'); // well past the 6-minute stale window
+      runner.scriptTriage({ ok: true, value: triageResult(), usage: okUsage });
+      const outcome = await useCase.execute('t-1');
+      expect(outcome).toMatchObject({ kind: 'completed', next: 'awaiting_owner' });
+      expect(store.types('t-1').slice(-4)).toEqual(['run_started', 'triage_completed', 'run_succeeded', 'owner_required']);
+      expect(runner.triageInputs).toHaveLength(1);
     });
 
     it('a failed re-triage (run_failed from triaging) behaves as before: returns the ticket to received', async () => {

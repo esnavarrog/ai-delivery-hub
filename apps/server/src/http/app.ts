@@ -261,7 +261,13 @@ export function createApp(deps: AppDeps): Hono<Env> {
 
   app.post('/api/tickets/:id/reopen', async (c) => command(c, await deps.commands.reopenPlan(c.req.param('id'), c.get('user'), await parseBody(c, DecisionBody))));
 
-  app.post('/api/tickets/:id/flags', async (c) => command(c, await deps.commands.setFlag(c.req.param('id'), c.get('user'), await parseBody(c, FlagBody))));
+  app.post('/api/tickets/:id/flags', async (c) => {
+    const id = c.req.param('id');
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
+    return command(c, await deps.commands.setFlag(id, c.get('user'), await parseBody(c, FlagBody)));
+  });
 
   app.post('/api/tickets/:id/retriage', async (c) => {
     const result = await deps.commands.retriage(c.req.param('id'), c.get('user'));
@@ -286,14 +292,22 @@ export function createApp(deps: AppDeps): Hono<Env> {
   });
 
   app.post('/api/tickets/:id/comments', async (c) => {
-    const result = await deps.commands.addPlanComment(c.req.param('id'), c.get('user'), await parseBody(c, AddCommentBody));
+    const id = c.req.param('id');
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
+    const result = await deps.commands.addPlanComment(id, c.get('user'), await parseBody(c, AddCommentBody));
     const body: CommentResponse = { ticket: result.snapshot, comment: result.comment };
     return c.json(body, 201);
   });
 
-  app.post('/api/tickets/:id/comments/:commentId/resolve', async (c) =>
-    command(c, await deps.commands.resolvePlanComment(c.req.param('id'), c.get('user'), c.req.param('commentId'))),
-  );
+  app.post('/api/tickets/:id/comments/:commentId/resolve', async (c) => {
+    const id = c.req.param('id');
+    const found = await deps.queries.get(id);
+    if (!found) throw new TicketNotFoundError(id);
+    assertTicketVisible(c.get('user'), found.snapshot, id);
+    return command(c, await deps.commands.resolvePlanComment(id, c.get('user'), c.req.param('commentId')));
+  });
 
   // ---- runs ----------------------------------------------------------------
 

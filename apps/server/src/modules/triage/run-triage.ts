@@ -111,20 +111,38 @@ export function clarificationHistoryFrom(events: readonly TicketEvent[]): Clarif
 }
 
 /**
- * A ticket already in `triaging` is eligible for a fresh re-triage run only when it just got
- * there via `requester_answers_submitted` with no `run_started` (kind `triage`) appended since:
- * scanning backward, the first of the two markers found decides. Finding a `run_started` first
- * means either the ticket's very first triage leg is still in flight, or an earlier re-triage
- * run already started — either way a duplicate/concurrent job must be skipped, never start a
- * second run for the same leg.
+ * A ticket in `triaging` may (re-)start a triage run for its current leg — the first leg,
+ * entered via `triage_started`, or a clarification re-triage, entered via
+ * `requester_answers_submitted` — in two cases:
+ *   - no `run_started` (kind `triage`) has been appended yet for this leg (fresh leg, no run in
+ *     flight), or
+ *   - the leg's `run_started` is older than `staleAfterMs`: the process almost certainly died
+ *     mid-run (no `run_succeeded`/`run_failed`/`triage_completed`/`requester_questions_asked`
+ *     ever followed it, or the ticket would have left `triaging`), so the run is abandoned and a
+ *     fresh one may start.
+ * A `run_started` younger than `staleAfterMs` is a genuine in-flight run (or a duplicate/
+ * concurrent job): skip it, never start a second run for the same leg.
  */
-export function canReTriage(events: readonly TicketEvent[]): boolean {
+export function mayStartTriageFromTriaging(events: readonly TicketEvent[], now: Date, staleAfterMs: number): boolean {
+  let legEntryIndex = -1;
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const e = events[i]!;
-    if (e.type === 'run_started' && (e.payload as { kind?: string }).kind === 'triage') return false;
-    if (e.type === 'requester_answers_submitted') return true;
+    if (e.type === 'triage_started' || e.type === 'requester_answers_submitted') {
+      legEntryIndex = i;
+      break;
+    }
   }
-  return false;
+  if (legEntryIndex === -1) return false; // defensive: shouldn't happen while state is 'triaging'
+
+  // The latest run of the leg decides: an older abandoned run must not unlock a newer in-flight one.
+  for (let i = events.length - 1; i > legEntryIndex; i -= 1) {
+    const e = events[i]!;
+    if (e.type === 'run_started' && (e.payload as { kind?: string }).kind === 'triage') {
+      const age = now.getTime() - new Date(e.createdAt).getTime();
+      return age > staleAfterMs;
+    }
+  }
+  return true; // no run started yet for this leg
 }
 
 /** Routing depends on `assessment.functional.questions`, never `management.recommendation` (a `needs_info` recommendation without questions still completes triage normally). */
@@ -139,7 +157,9 @@ function pendingQuestions(result: TriageResult): readonly string[] {
  * rounds as context (see `clarificationHistoryFrom`). Every attempt leaves a `runs` row.
  * Idempotent per state: a ticket not in `received` is skipped, a paused ticket is skipped, and a
  * ticket already in `triaging` with a run in flight for this leg — its first leg, an earlier
- * re-triage, or a duplicate/concurrent job — is skipped too (see `canReTriage`).
+ * re-triage, or a duplicate/concurrent job — is skipped too, unless that run is older than the
+ * triage budget's `maxDurationMs` × 2, in which case it is treated as abandoned (crashed) and a
+ * fresh run starts (see `mayStartTriageFromTriaging`).
  */
 export class RunTriage {
   constructor(private readonly deps: RunTriageDeps) {}
@@ -158,7 +178,8 @@ export class RunTriage {
         // also the "run in progress" state, so a duplicate/retried job must be told apart from a
         // genuine re-triage instead of starting a second concurrent run.
         if (snapshot.state === 'triaging') {
-          if (!canReTriage(events)) {
+          const staleAfterMs = budget.maxDurationMs * 2;
+          if (!mayStartTriageFromTriaging(events, deps.clock.now(), staleAfterMs)) {
             throw new TransitionDeniedError(ticketId, 'run_started', 'a triage run is already in progress for this ticket; skipping duplicate/concurrent job');
           }
           guard(TRIAGE_SYSTEM_ACTOR, 'run_started');

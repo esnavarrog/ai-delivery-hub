@@ -52,7 +52,11 @@ Today tickets only enter via OpenProject or the Obsidian vault import. There is 
     - QA-fix commits: 5657a2c (web route + sentences), 9f20843 (projection + migration 0005 + answers 404), 95f36ea (budget 80k). Checks: web 77/77, domain 195/195, policies 9/9, server 249 incl. PG integration (1 env fail), typecheck 5/5, build ok.
     - Review: RDD found **off (global)** at preflight (`rdd_disabled`) — user-owned switch, not re-enabled. RDD-off path: assess 33723e1..95f36ea = high (process_boundary repos.yaml, 1985 lines) → writer self-verification + independent read-only verifier (running).
     - Observed, out of scope: a failed triage leaves the ticket in `received` with no auto-retry (pre-existing); requester still sees Bandeja/Tablero/Ejecuciones nav (T5).
-- [ ] T5 — Web lead: assessment card (three lenses + RICE) on ticket page, confirm dialog with score overrides, `/inbox` restricted to lead/admin, nav links by role. (route: delegated)
+- [x] T5 — Web lead: assessment card (three lenses + RICE) on ticket page, confirm dialog with score overrides, `/inbox` restricted to lead/admin, nav links by role. (route: delegated)
+  - Commit d95a36b. `AssessmentCard` (three lenses + RICE via domain `riceScore`, AI-suggested vs human-confirmed badge, provisional during `awaiting_requester`); `ConfirmTriageDialog` score selects with live RICE, sends `scores` only when changed — server `confirmTriage` now passes `scores` through; requester nav hides Bandeja/Tablero/Ejecuciones and `/inbox` `/board` `/runs` redirect to `/solicitudes`; RICE badge on inbox cards. dev/qa keep dev views (existing review flow depends on dev; user asked "inbox only for dev admins" → lead/admin + dev, requester excluded).
+  - Checks: web 100/100, server 239 / 1 env, typecheck 5/5, build ok. Writer stalled once (watchdog) and was resumed.
+  - Browser QA: requester `/inbox` `/board` `/runs` → `/solicitudes` ✓, nav reduced ✓; admin inbox shows "RICE 1.6" ✓; M-0002 assessment card renders all three lenses with criteria, risks, dependencies, recommendation, rationale ✓. Found: "1 preguntas" plural, "Preguntas: Ninguno", `/runs` fires a 403 request before redirect → final fixes.
+  - Independent verifier (RDD off, high tier) on 33723e1..95f36ea: FAIL with 1 blocker — `canReTriage` strands a ticket in `triaging` after an interrupted run (parent check: first-leg strand is pre-existing on base b58f6d9, re-triage leg is new) — plus pre-existing requester ownership gap on flags/comments routes. Both → final fixes (writer running): stale-run window (> maxDurationMs×2 ⇒ abandoned), `assertTicketVisible` on flags/comments/resolve.
 
 ## Constraints
 - Backward compatible: existing events/tickets without intake/assessment keep working (optional fields, upcast if needed).
@@ -75,4 +79,4 @@ Forecast ~1500–2000 authored changed lines (> 400) → strategy `ask-on-risk`;
 - 2026-09-24: worktree + branch created, `pnpm install` ok, codegraph initialized.
 
 ## Next step
-T5 web lead (delegated writer); independent verifier on 33723e1..95f36ea.
+Land final fixes, re-verify, then final PR `feat/feature-requests` → base (user decision).

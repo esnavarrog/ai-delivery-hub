@@ -19,7 +19,14 @@ async function copyPoliciesWith(overrides: Record<string, string>): Promise<stri
 describe('loadPolicies', () => {
   it('loads the seed policies shipped with the package', async () => {
     const policies = await loadPolicies(packageRoot);
-    expect(Object.keys(policies.repos)).toEqual(['backend-parkingapp', 'libredte-api']);
+    expect(Object.keys(policies.repos)).toEqual(['backend-parkingapp', 'libredte-api', 'parkingapp-capacitor-pilot']);
+    expect(policies.repos['parkingapp-capacitor-pilot']).toEqual({
+      remote: 'https://github.com/Macstban/autoatencion-capacitor.git',
+      defaultBranch: 'main',
+      testCommand: 'npm test',
+      stack: 'next',
+      branchPattern: '{wpId}-{slug}',
+    });
     expect(policies.repos['backend-parkingapp']).toEqual({
       remote: 'git@github.com-redcomercio:Redcomercio/backend-parkingapp.git',
       defaultBranch: 'develop',

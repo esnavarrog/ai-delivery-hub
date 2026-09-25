@@ -12,6 +12,12 @@ repos:
     testCommand: pytest
     stack: fastapi
     branchPattern: "feat/{slug}"
+  parkingapp-capacitor-pilot:
+    remote: https://github.com/Macstban/autoatencion-capacitor.git
+    defaultBranch: main
+    testCommand: npm test
+    stack: next
+    branchPattern: "{wpId}-{slug}"
 
 # Exact Claude model ids (no date suffix). Planning picks the model by triage risk tier.
 models:
